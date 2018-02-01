@@ -10,38 +10,69 @@ extern HardwareSerial Serial;
 #define MATRIX_LED_TYPE NEOPIXEL
 #define MATRIX_BRIGHTNESS 5
 CRGB matrixLeds[MATRIX_NUM_LEDS];
+int fillToRow = 0;
+long unsigned int fillWithColors[] = {
+  CRGB::Red,
+  CRGB::Yellow,
+  CRGB::Blue,
+  CRGB::White
+};
 
 // Potentimeters
 int potiPins[] = {0,1,2,3};
-int potiOldValues[] = {0,0,0,0};
+int potiActiveValues[] = {0,0,0,0};
+int potiActiveIndex = 0;
 
+
+// *** MATRIX ***
 void setupMatrix() {
   FastLED.addLeds<MATRIX_LED_TYPE, MATRIX_PIN>(matrixLeds, MATRIX_NUM_LEDS);
   FastLED.setBrightness(MATRIX_BRIGHTNESS);
+  FastLED.clear();
 }
 
+// *** MATRIX ***
 void loopMatrix() {
-  for(int i=0; i < MATRIX_NUM_LEDS; i++) {
-    matrixLeds[i] = CRGB::White;
+  for (unsigned int potiIndex=0; potiIndex < 4; potiIndex++) {
+    int mStart = potiIndex * 10;
+    int mEnd = mStart + potiActiveValues[potiIndex] + 1;
+
+    for (int i = mStart; i < mEnd; i++) {
+      matrixLeds[i] = CRGB::Red;
+    }
+
+    for (int i = mEnd; i < (mStart + 10); i++) {
+      matrixLeds[i] = CRGB::Yellow;
+    }
   }
+
   FastLED.show();
-  delay(2000);
 }
 
+// *** POTENTIOMETER ***
 void setupPotis() {
 }
 
+// *** POTENTIOMETER ***
 void loopPotis() {
   #ifdef DEBUG
-    for(int i=0; i < 4; i++) {
-      // read value from poti and map to 0-9
-      int potiValue = analogRead(i);
-      Serial.print("Potentiometer");
-      Serial.print(i);
-      Serial.print(" = ");
-      Serial.println(potiValue);
+    for (unsigned int potiIndex=0; potiIndex < sizeof(potiPins); potiIndex++) {
+      int potiValue = map(analogRead(potiPins[potiIndex]), 0, 1023, 0, 9);
+
+      // If one change is found, skill polling of other potentiometers
+      if (potiValue != potiActiveValues[potiIndex]) {
+        Serial.print("Potentiometer #");
+        Serial.print(potiIndex);
+        Serial.print(" on A");
+        Serial.print(potiPins[potiIndex]);
+        Serial.print(" = ");
+        Serial.println(potiValue);
+
+        // This will be picked up by loopMatrix()
+        potiActiveValues[potiIndex] = potiValue;
+        potiActiveIndex = potiIndex;
+      }
     }
-    delay(3000);
   #endif
 }
 
