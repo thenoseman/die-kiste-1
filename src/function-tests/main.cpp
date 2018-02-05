@@ -16,25 +16,31 @@ CRGB matrixLeds[MATRIX_NUM_LEDS];
 
 // Potentimeters
 #define POTIS_NUM_POTIS 4
-int potiPins[] = {0,1,2,3};
+const int potiPins[] = {0,1,2,3};
 int potiActiveValues[] = {0,0,0,0};
 int potiActiveIndex = 0;
 
 // Arcade Switches
 #define AS_NUM_SWITCHES 3
-int arcadeBtnsDin[] = {9, 11, 13};
-int arcadeBtnsLeds[] = {8, 10, 12};
+const int arcadeBtnsDin[] = {9, 11, 13};
+const int arcadeBtnsLeds[] = {8, 10, 12};
 
 // Pressure Gauge
-#define PRESSURE_BTN_PIN 2
-#define PRESSURE_LED_PIN 3
+#define PRESSURE_BTN_PIN 3
+#define PRESSURE_LED_PIN 4
 #define PRESSURE_NUM_LEDS 5
 #define PRESSURE_LED_TYPE NEOPIXEL
 #define PRESSURE_TIMER_MILLIS 100000 // 100 millisecs
 CRGB pressureLeds[PRESSURE_NUM_LEDS];
 volatile int pressurePercent = 0;
-// These colrs are used indicating the "danger" level, starting at 0 (no led lite) to 5 (all lite)
-long unsigned int pressureColors[] = {CRGB::Black, CRGB::LawnGreen, CRGB::Green, CRGB::Yellow, CRGB::Orange, CRGB::Red};
+// These colors are used indicating the "danger" level, starting at 0 (no led lite) to 5 (all lite)
+const long unsigned int pressureColors[] = {CRGB::Black, CRGB::LawnGreen, CRGB::Green, CRGB::Yellow, CRGB::Orange, CRGB::Red};
+
+// Switchboard
+#define SWITCHBOARD_NUM_PINS 6
+const int switchboardPins[] = { 5, 6, 7, 8, 9, 10 };
+int switchboardActiveOut = 0;
+int switchboardActiveIn = 0;
 
 // *** MATRIX ***
 void setupMatrix() {
@@ -43,6 +49,8 @@ void setupMatrix() {
 
 // *** MATRIX ***
 void loopMatrix() {
+
+  // Loop setting potis:
   for (unsigned int potiIndex=0; potiIndex < 4; potiIndex++) {
     int mStart = potiIndex * 10;
     int mEnd = mStart + potiActiveValues[potiIndex] + 1;
@@ -55,6 +63,8 @@ void loopMatrix() {
       matrixLeds[i] = CRGB::Yellow;
     }
   }
+
+  // loop setting switchboard
 }
 
 // *** POTENTIOMETER ***
@@ -89,7 +99,7 @@ void loopPotis() {
 // ARCADE SWITCHES
 void setupArcadeSwitches() {
   for(int i=0; i < AS_NUM_SWITCHES; i++) {
-    pinMode(arcadeBtnsDin[i], INPUT_PULLUP);
+    pinMode(arcadeBtnsDin[i], INPUT);
     pinMode(arcadeBtnsLeds[i], OUTPUT);
   }
 }
@@ -172,7 +182,7 @@ void loopPressureGauge() {
 
 // PRESSURE GAUGE
 void setupPressureGauge() {
-  pinMode(PRESSURE_BTN_PIN, INPUT_PULLUP);
+  pinMode(PRESSURE_BTN_PIN, INPUT);
   pinMode(PRESSURE_LED_PIN, OUTPUT);
 
   FastLED.addLeds<PRESSURE_LED_TYPE, PRESSURE_LED_PIN>(pressureLeds, PRESSURE_NUM_LEDS);
@@ -181,16 +191,98 @@ void setupPressureGauge() {
   Timer1.attachInterrupt(handleInterruptPressure);
 }
 
+// SWITCHBOARD
+void setupSwitchboard() {
+  // Reset all Pins as INPUTs
+  for (int i=0; i < SWITCHBOARD_NUM_PINS; i++) {
+    pinMode(switchboardPins[i], INPUT);
+  }
+  switchboardActiveOut = 0;
+  switchboardActiveIn = 0;
+}
+
+// SWITCHBOARD
+void loopSwitchboard() {
+  // Reset
+  int inputPinReadout = LOW;
+  setupSwitchboard();
+
+  // Loop all pins switching one as OUTPUT
+  for(int outputPinIndex=0; outputPinIndex < SWITCHBOARD_NUM_PINS && switchboardActiveIn == 0; outputPinIndex++) {
+
+    // Set last loop pin to INPUT again
+    if (outputPinIndex > 0) {
+      pinMode(switchboardPins[outputPinIndex-1], INPUT);
+    }
+    pinMode(switchboardPins[outputPinIndex], OUTPUT);
+    digitalWrite(switchboardPins[outputPinIndex], HIGH);
+
+    for(int inputPinIndex=0; inputPinIndex < SWITCHBOARD_NUM_PINS && switchboardActiveIn == 0; inputPinIndex++) {
+
+      // Don't switch to INPUT for the pin that is currently OUTPUT
+      if(inputPinIndex == outputPinIndex) {
+        continue;
+      }
+      pinMode(switchboardPins[inputPinIndex], INPUT);
+
+      inputPinReadout = digitalRead(switchboardPins[inputPinIndex]);
+
+      #ifdef DEBUG
+        Serial.print("[SWITCHBOARD] read input pin #");
+        Serial.print(inputPinIndex);
+        Serial.print(" (D");
+        Serial.print(switchboardPins[inputPinIndex]);
+        Serial.print(") = ");
+        Serial.print(inputPinReadout);
+        Serial.print(" Tried output #");
+        Serial.print(outputPinIndex);
+        Serial.print(" (D");
+        Serial.print(switchboardPins[outputPinIndex]);
+        Serial.print(") and input #");
+        Serial.print(inputPinIndex);
+        Serial.print(" (D");
+        Serial.print(switchboardPins[inputPinIndex]);
+        Serial.println(")");
+      #endif
+
+      if (inputPinReadout == HIGH) {
+        switchboardActiveIn = inputPinIndex;
+        switchboardActiveOut = outputPinIndex;
+
+        #ifdef DEBUG
+          Serial.print("[SWITCHBOARD] connection from IN ");
+          Serial.print(switchboardActiveIn);
+          Serial.print(" to OUT ");
+          Serial.println(switchboardActiveOut);
+        #endif
+      }
+    }
+  }
+
+  for(int i=0; i < SWITCHBOARD_NUM_PINS; i++) {
+    matrixLeds[90 + i] = CRGB::Black;
+  }
+  
+  // Connection found?
+  if(switchboardActiveOut > 0 && switchboardActiveIn > 0) {
+    matrixLeds[90 + switchboardActiveIn] = CRGB::Green;
+    matrixLeds[90 + switchboardActiveOut] = CRGB::Red;
+  }
+
+  delay(2000);
+}
+
 void setup()
 {
   Serial.begin(9600);
 
   setupMatrix();
-  setupPotis();
-  setupArcadeSwitches();
-  setupPressureGauge();
+  //setupPotis();
+  //setupArcadeSwitches();
+  //setupPressureGauge();
+  setupSwitchboard();
 
-  // Finalize FastLED  setup
+  // Finalize FastLED setup
   FastLED.setBrightness(LED_BRIGHTNESS);
   FastLED.clear();
   FastLED.show();
@@ -199,9 +291,10 @@ void setup()
 void loop()
 {
   loopMatrix();
-  loopPotis();
-  loopArcadeSwitches();
-  loopPressureGauge();
+  //loopPotis();
+  //loopArcadeSwitches();
+  //loopPressureGauge();
+  loopSwitchboard();
 
   FastLED.show();
 }
