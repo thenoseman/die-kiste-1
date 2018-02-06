@@ -34,6 +34,7 @@ extern HardwareSerial Serial;
 // Matrix display
 const uint8_t MATRIX_LED_PIN = A2;
 #define MATRIX_NUM_LEDS 100
+#define MATRIX_DIM 10
 #define MATRIX_LED_TYPE NEOPIXEL
 CRGB matrixLeds[MATRIX_NUM_LEDS];
 
@@ -65,9 +66,41 @@ const int switchboardPins[] = { 2, 3, 4, 5, 6, 7 };
 int switchboardActiveOut = 0;
 int switchboardActiveIn = 0;
 
+// LED Numbers
+int matrixNumbers[10][13] = {
+   {10,11,12,13,20,24,31,32,33,34,-1,-1,-1},  // 0
+   {13,20,21,22,23,24,-1,-1,-1,-1,-1,-1,-1},  // 1
+   {10,11,14,20,22,24,30,33,-1,-1,-1,-1,-1},  // 2
+   {10,14,20,22,24,31,33,-1,-1,-1,-1,-1,-1},  // 3
+   {12,13,14,22,30,31,32,33,34,-1,-1,-1,-1},  // 4
+   {10,12,13,14,20,22,24,31,34,-1,-1,-1,-1},  // 5
+   {10,11,12,13,20,22,24,30,31,32,34,-1,-1},  // 6
+   {10,11,14,22,24,33,34,-1,-1,-1,-1,-1,-1},  // 7
+   {10,11,12,13,14,20,22,24,30,31,32,33,34},  // 8
+   {10,12,13,14,20,22,24,31,32,33,34,-1,-1}   // 9
+};
+#define MATRIX_NUMBERS_SIZE 13
+int currentLedNumber = 0;
+int currentLedNumberStartColumn = 4;
+unsigned int currentLedNumberDurationMillis = 1000;
+unsigned int currentLedNumberStartMillis = 0;
+
 // *** MATRIX ***
 void setupMatrix() {
   FastLED.addLeds<MATRIX_LED_TYPE, MATRIX_LED_PIN>(matrixLeds, MATRIX_NUM_LEDS);
+}
+
+// Displays a number in a column using a CRGB::.... color
+void matrixShowNumber(int number, int startColumn, unsigned int color) {
+  for(int i=0; i < MATRIX_NUMBERS_SIZE; i++) {
+    int currentLedPos = matrixNumbers[number][i];
+
+    if(currentLedPos == -1) {
+      break;
+    }
+
+    matrixLeds[currentLedPos + MATRIX_DIM * startColumn] = color;
+  }
 }
 
 // *** MATRIX ***
@@ -84,6 +117,18 @@ void loopMatrix() {
 
     for (int i = mStart; i < mEnd; i++) {
       matrixLeds[i] = CRGB::Red;
+    }
+  }
+
+  if(millis() > (currentLedNumberStartMillis + currentLedNumberDurationMillis)) {
+    int prevNumber = (currentLedNumber - 1) < 0 ? 9 : (currentLedNumber - 1);
+    matrixShowNumber(prevNumber, currentLedNumberStartColumn, CRGB::Black);
+    matrixShowNumber(currentLedNumber, currentLedNumberStartColumn, CRGB::Green);
+    currentLedNumberStartMillis = millis();
+
+    currentLedNumber++;
+    if(currentLedNumber > 9) {
+      currentLedNumber = 0;
     }
   }
 
