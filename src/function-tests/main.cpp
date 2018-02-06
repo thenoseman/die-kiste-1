@@ -195,7 +195,7 @@ void setupPressureGauge() {
 void setupSwitchboard() {
   // Reset all Pins as INPUTs
   for (int i=0; i < SWITCHBOARD_NUM_PINS; i++) {
-    pinMode(switchboardPins[i], INPUT);
+    pinMode(switchboardPins[i], INPUT_PULLUP);
   }
   switchboardActiveOut = 0;
   switchboardActiveIn = 0;
@@ -210,20 +210,17 @@ void loopSwitchboard() {
   // Loop all pins switching one as OUTPUT
   for(int outputPinIndex=0; outputPinIndex < SWITCHBOARD_NUM_PINS && switchboardActiveIn == 0; outputPinIndex++) {
 
-    // Set last loop pin to INPUT again
-    if (outputPinIndex > 0) {
-      pinMode(switchboardPins[outputPinIndex-1], INPUT);
-    }
+    // set the output pin LOW
     pinMode(switchboardPins[outputPinIndex], OUTPUT);
-    digitalWrite(switchboardPins[outputPinIndex], HIGH);
+    digitalWrite(switchboardPins[outputPinIndex], LOW);
 
-    for(int inputPinIndex=0; inputPinIndex < SWITCHBOARD_NUM_PINS && switchboardActiveIn == 0; inputPinIndex++) {
+    for(int inputPinIndex=outputPinIndex+1; inputPinIndex < SWITCHBOARD_NUM_PINS && switchboardActiveIn == 0; inputPinIndex++) {
 
       // Don't switch to INPUT for the pin that is currently OUTPUT
       if(inputPinIndex == outputPinIndex) {
         continue;
       }
-      pinMode(switchboardPins[inputPinIndex], INPUT);
+      pinMode(switchboardPins[inputPinIndex], INPUT_PULLUP);
 
       inputPinReadout = digitalRead(switchboardPins[inputPinIndex]);
 
@@ -245,18 +242,25 @@ void loopSwitchboard() {
         Serial.println(")");
       #endif
 
-      if (inputPinReadout == HIGH) {
+      if (inputPinReadout == LOW) {
         switchboardActiveIn = inputPinIndex;
         switchboardActiveOut = outputPinIndex;
-
         #ifdef DEBUG
           Serial.print("[SWITCHBOARD] connection from IN ");
           Serial.print(switchboardActiveIn);
-          Serial.print(" to OUT ");
-          Serial.println(switchboardActiveOut);
+          Serial.print(" (D");
+          Serial.print(switchboardPins[switchboardActiveIn]);
+          Serial.print(") to OUT ");
+          Serial.print(switchboardActiveOut);
+          Serial.print(" (D");
+          Serial.print(switchboardPins[switchboardActiveOut]);
+          Serial.println(")");
         #endif
       }
     }
+
+    // Set last loop pin to INPUT again
+    pinMode(switchboardPins[outputPinIndex], INPUT_PULLUP);
   }
 
   for(int i=0; i < SWITCHBOARD_NUM_PINS; i++) {
