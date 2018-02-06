@@ -53,7 +53,7 @@ const int arcadeBtnsLeds[] = {8, 10, 12};
 #define PRESSURE_BTN_PIN A1
 #define PRESSURE_NUM_LEDS 5
 #define PRESSURE_LED_TYPE NEOPIXEL
-#define PRESSURE_TIMER_MILLIS 100000 // 100 millisecs
+#define PRESSURE_TIMER_MICRO 100000 // 100 millisecs
 CRGB pressureLeds[PRESSURE_NUM_LEDS];
 volatile int pressurePercent = 0;
 // These colors are used indicating the "danger" level, starting at 0 (no led lite) to 5 (all lite)
@@ -196,7 +196,7 @@ void setupPressureGauge() {
 
   FastLED.addLeds<PRESSURE_LED_TYPE, PRESSURE_LED_PIN>(pressureLeds, PRESSURE_NUM_LEDS);
  
-  Timer1.initialize(PRESSURE_TIMER_MILLIS);
+  Timer1.initialize(PRESSURE_TIMER_MICRO);
   Timer1.attachInterrupt(handleInterruptPressure);
 }
 
