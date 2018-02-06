@@ -1,0 +1,17 @@
+td {
+  width: 40px;
+  height: 40px;
+  border: 1px solid black;
+  cursor: pointer;
+}
+
+td.active {
+  background-color: green;
+}
+
+textarea {
+  border: 1px solid grey;
+  width: 400px;
+  height: 200px;
+  font-size: 12px;
+}
