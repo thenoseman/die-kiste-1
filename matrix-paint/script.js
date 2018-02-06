@@ -21,11 +21,9 @@ $("#container td").on("click", function() {
   var code = [];
   for (var l = 0; l < matrixSize * matrixSize; l++) {
     var isActive = $("[data-i='" + l + "']").hasClass("active");
-    code.push(isActive ? 1 : 0);
-  }
-
-  for (var l2 = (matrixSize * matrixSize) - 1; code[l2] !== 1 && l2 > 0; l2--) {
-    code.splice(-1,1);
+    if (isActive) {
+      code.push(l);
+    }
   }
 
   $("textarea").val("byte ledsToTurnOn[] = {" + code.join(",") + "};");
