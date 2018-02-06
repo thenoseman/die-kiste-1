@@ -5,18 +5,41 @@
 
 extern HardwareSerial Serial;
 
+//                                  +-----+
+//                     +------------| USB |-------------+
+//                     |            +-----+             |
+// arcadeBtnsDin[2] -> | [ ]D13/SCK         MISO/D12[ ] | -> arcadeBtnsLeds[2]
+//                     | [ ]3.3V            MOSI/D11[ ]~| <- arcadeBtnsDin[1]
+//                     | [ ]V.ref     ___     SS/D10[ ]~| -> arcadeBtnsLeds[1]
+// PRESSURE_LED_PIN <- | [ ]A0       / N \        D9[ ]~| <- arcadeBtnsDin[0]
+// PRESSURE_BTN_PIN -> | [ ]A1      /  A  \       D8[ ] | -> arcadeBtnsLeds[0]
+// MATRIX_LED_PIN   <- | [ ]A2      \  N  /       D7[ ] | <- switchboardPins[5]
+//                     | [ ]A3       \_0_/        D6[ ]~| <- switchboardPins[4]
+//     potiPins[0]  -> | [ ]A4/SDA                D5[ ]~| <- switchboardPins[3]
+//     potiPins[1]  -> | [ ]A5/SCL                D4[ ] | <- switchboardPins[2]
+//     potiPins[2]  -> | [ ]A6 (noDIn)       INT1/D3[ ]~| <- switchboardPins[1]
+//     potiPins[3]  -> | [ ]A7 (noDIn)       INT0/D2[ ] | <- switchboardPins[0]
+//                     | [ ]5V                   GND[ ] |
+//                     | [ ]RST                  RST[ ] |
+//                     | [ ]GND   5V MOSI GND D0/RX1[ ] |
+//                     | [ ]Vin   [ ] [ ] [ ] D1/TX1[ ] |
+//                     |          [ ] [ ] [ ]           |
+//                     |          MISO SCK RST          |
+//                     | NANO-V3                        |
+//                     +--------------------------------+
+                   
 // Common
 #define LED_BRIGHTNESS 5
 
 // Matrix display
-#define MATRIX_PIN 2
+const uint8_t MATRIX_LED_PIN = A2;
 #define MATRIX_NUM_LEDS 100
 #define MATRIX_LED_TYPE NEOPIXEL
 CRGB matrixLeds[MATRIX_NUM_LEDS];
 
-// Potentimeters
+// Potentiometers
 #define POTIS_NUM_POTIS 4
-const int potiPins[] = {0,1,2,3};
+const int potiPins[] = {4,5,6,7};
 int potiActiveValues[] = {0,0,0,0};
 int potiActiveIndex = 0;
 
@@ -26,8 +49,8 @@ const int arcadeBtnsDin[] = {9, 11, 13};
 const int arcadeBtnsLeds[] = {8, 10, 12};
 
 // Pressure Gauge
-#define PRESSURE_BTN_PIN 3
-#define PRESSURE_LED_PIN 4
+#define PRESSURE_LED_PIN A0
+#define PRESSURE_BTN_PIN A1
 #define PRESSURE_NUM_LEDS 5
 #define PRESSURE_LED_TYPE NEOPIXEL
 #define PRESSURE_TIMER_MILLIS 100000 // 100 millisecs
@@ -38,33 +61,32 @@ const long unsigned int pressureColors[] = {CRGB::Black, CRGB::LawnGreen, CRGB::
 
 // Switchboard
 #define SWITCHBOARD_NUM_PINS 6
-const int switchboardPins[] = { 5, 6, 7, 8, 9, 10 };
+const int switchboardPins[] = { 2, 3, 4, 5, 6, 7 };
 int switchboardActiveOut = 0;
 int switchboardActiveIn = 0;
 
 // *** MATRIX ***
 void setupMatrix() {
-  FastLED.addLeds<MATRIX_LED_TYPE, MATRIX_PIN>(matrixLeds, MATRIX_NUM_LEDS);
+  FastLED.addLeds<MATRIX_LED_TYPE, MATRIX_LED_PIN>(matrixLeds, MATRIX_NUM_LEDS);
 }
 
 // *** MATRIX ***
 void loopMatrix() {
 
   // Loop setting potis:
-  for (unsigned int potiIndex=0; potiIndex < 4; potiIndex++) {
+  for (unsigned int potiIndex = 0; potiIndex < 4; potiIndex++) {
     int mStart = potiIndex * 10;
-    int mEnd = mStart + potiActiveValues[potiIndex] + 1;
+    int mEnd = mStart + 10 - potiActiveValues[potiIndex];
+
+    for (int i = mStart; i < (mStart + 10); i++) {
+      matrixLeds[i] = CRGB::Yellow;
+    }
 
     for (int i = mStart; i < mEnd; i++) {
       matrixLeds[i] = CRGB::Red;
     }
-
-    for (int i = mEnd; i < (mStart + 10); i++) {
-      matrixLeds[i] = CRGB::Yellow;
-    }
   }
 
-  // loop setting switchboard
 }
 
 // *** POTENTIOMETER ***
@@ -75,13 +97,13 @@ void setupPotis() {
 void loopPotis() {
 
   for (int potiIndex=0; potiIndex < POTIS_NUM_POTIS; potiIndex++) {
-    int potiValue = map(analogRead(potiPins[potiIndex]), 0, 1023, 0, 9);
+    int potiValue = constrain(map(analogRead(potiPins[potiIndex]), 0, 1023, 0, 10), 0, 9);
 
     // If one change is found, skill polling of other potentiometers
     // TODO: remove bouncing 0->1->0 effect
     if (potiValue != potiActiveValues[potiIndex]) {
       #ifdef DEBUG
-        Serial.print("Potentiometer #");
+        Serial.print("[POTENTIOMETER] #");
         Serial.print(potiIndex);
         Serial.print(" on A");
         Serial.print(potiPins[potiIndex]);
@@ -99,7 +121,7 @@ void loopPotis() {
 // ARCADE SWITCHES
 void setupArcadeSwitches() {
   for(int i=0; i < AS_NUM_SWITCHES; i++) {
-    pinMode(arcadeBtnsDin[i], INPUT);
+    pinMode(arcadeBtnsDin[i], INPUT_PULLUP);
     pinMode(arcadeBtnsLeds[i], OUTPUT);
   }
 }
@@ -110,14 +132,9 @@ void loopArcadeSwitches() {
     int state = digitalRead(arcadeBtnsDin[i]);
 
     #ifdef DEBUG
-      Serial.print("AS Switch on D");
+      Serial.print("[ARCADESWITCHES] Switch on D");
       Serial.print(arcadeBtnsDin[i]);
       Serial.print(" = ");
-      Serial.print(state);
-    #endif
-
-    #ifdef DEBUG
-      Serial.print(" -> setting to ");
       Serial.println(state);
     #endif
 
@@ -143,19 +160,11 @@ void handleInterruptPressure() {
   if (pressurePercent < 0) {
     pressurePercent = 0;
   }
-
-  #ifdef DEBUG
-    Serial.print("Pressure Gauge Btn = ");
-    Serial.print(pressureButtonState);
-    Serial.print("; pressurePercent = ");
-    Serial.println(pressurePercent);
-  #endif
 }
 
 // PRESSURE GAUGE
 void loopPressureGauge() {
   int pressurePercentCopy;
-  Serial.println("loopPressureGauge");
 
   noInterrupts();
   pressurePercentCopy = pressurePercent;
@@ -165,7 +174,7 @@ void loopPressureGauge() {
   long unsigned int pressureColor = pressureColors[pressureToLed];
 
   #ifdef DEBUG
-    Serial.print("loopPressureGauge(): pressureToLed = ");  
+    Serial.print("[PRESSUREGAUGE] pressureToLed = ");  
     Serial.print(pressureToLed);
     Serial.print("; pressurePercent = ");
     Serial.println(pressurePercentCopy);
@@ -224,35 +233,17 @@ void loopSwitchboard() {
 
       inputPinReadout = digitalRead(switchboardPins[inputPinIndex]);
 
-      #ifdef DEBUG
-        Serial.print("[SWITCHBOARD] read input pin #");
-        Serial.print(inputPinIndex);
-        Serial.print(" (D");
-        Serial.print(switchboardPins[inputPinIndex]);
-        Serial.print(") = ");
-        Serial.print(inputPinReadout);
-        Serial.print(" Tried output #");
-        Serial.print(outputPinIndex);
-        Serial.print(" (D");
-        Serial.print(switchboardPins[outputPinIndex]);
-        Serial.print(") and input #");
-        Serial.print(inputPinIndex);
-        Serial.print(" (D");
-        Serial.print(switchboardPins[inputPinIndex]);
-        Serial.println(")");
-      #endif
-
       if (inputPinReadout == LOW) {
         switchboardActiveIn = inputPinIndex;
         switchboardActiveOut = outputPinIndex;
         #ifdef DEBUG
-          Serial.print("[SWITCHBOARD] connection from IN ");
+          Serial.print("[SWITCHBOARD] Connection from IN ");
           Serial.print(switchboardActiveIn);
-          Serial.print(" (D");
+          Serial.print(" (");
           Serial.print(switchboardPins[switchboardActiveIn]);
           Serial.print(") to OUT ");
           Serial.print(switchboardActiveOut);
-          Serial.print(" (D");
+          Serial.print(" (");
           Serial.print(switchboardPins[switchboardActiveOut]);
           Serial.println(")");
         #endif
@@ -268,12 +259,10 @@ void loopSwitchboard() {
   }
   
   // Connection found?
-  if(switchboardActiveOut > 0 && switchboardActiveIn > 0) {
+  if(switchboardActiveOut > 0 || switchboardActiveIn > 0) {
     matrixLeds[90 + switchboardActiveIn] = CRGB::Green;
     matrixLeds[90 + switchboardActiveOut] = CRGB::Red;
   }
-
-  delay(2000);
 }
 
 void setup()
@@ -281,9 +270,9 @@ void setup()
   Serial.begin(9600);
 
   setupMatrix();
-  //setupPotis();
-  //setupArcadeSwitches();
-  //setupPressureGauge();
+  setupPotis();
+  setupArcadeSwitches();
+  setupPressureGauge();
   setupSwitchboard();
 
   // Finalize FastLED setup
@@ -295,13 +284,11 @@ void setup()
 void loop()
 {
   loopMatrix();
-  //loopPotis();
-  //loopArcadeSwitches();
-  //loopPressureGauge();
+  loopPotis();
+  loopArcadeSwitches();
+  loopPressureGauge();
   loopSwitchboard();
 
   FastLED.show();
+  delay(150);
 }
-
-
-
