@@ -68,7 +68,8 @@ int switchboardActiveIn = 0;
 
 // LED Numbers
 #define MATRIX_ALPHABET_SIZE 36
-int matrixAlphabet[MATRIX_ALPHABET_SIZE][13] = {
+#define MATRIX_ALPHABET_L_SIZE 13
+int matrixAlphabet[MATRIX_ALPHABET_SIZE][MATRIX_ALPHABET_L_SIZE] = {
   {10,11,12,13,20,24,31,32,33,34,-1,-1,-1}, // 0
   {13,20,21,22,23,24,-1,-1,-1,-1,-1,-1,-1}, // 1
   {10,11,14,20,22,24,30,33,-1,-1,-1,-1,-1}, // 2
@@ -107,10 +108,10 @@ int matrixAlphabet[MATRIX_ALPHABET_SIZE][13] = {
   {10,11,14,20,22,24,30,33,34,-1,-1,-1,-1}  // Z
 };
 int currentLedNumber = 0;
-int currentLedLetterIndex = 11;
+int currentLedLetterIndex = 10;
 int currentLedNumberStartColumn = 4;
-unsigned int currentLedNumberDurationMillis = 1000;
-unsigned int currentLedNumberStartMillis = 0;
+unsigned long currentLedNumberDurationMillis = 1000;
+unsigned long currentLedNumberStartMillis = 0;
 
 // *** MATRIX ***
 void setupMatrix() {
@@ -119,7 +120,7 @@ void setupMatrix() {
 
 // Displays a number in a column using a CRGB::.... color
 void matrixShowNumber(int index, int startColumn, int startRow, unsigned int color) {
-  for(int i=0; i < MATRIX_ALPHABET_SIZE; i++) {
+  for(int i=0; i < MATRIX_ALPHABET_L_SIZE ; i++) {
     int currentLedPos = matrixAlphabet[index][i];
 
     if(currentLedPos == -1) {
@@ -165,7 +166,7 @@ void loopMatrix() {
     matrixShowNumber(currentLedLetterIndex, currentLedNumberStartColumn + 1, 5, CRGB::DarkOrange);
     currentLedLetterIndex++;
     if(currentLedLetterIndex >= MATRIX_ALPHABET_SIZE) {
-      currentLedLetterIndex = 11;
+      currentLedLetterIndex = 10;
     }
 
     currentLedNumberStartMillis = millis();
