@@ -67,20 +67,47 @@ int switchboardActiveOut = 0;
 int switchboardActiveIn = 0;
 
 // LED Numbers
-int matrixNumbers[10][13] = {
-   {10,11,12,13,20,24,31,32,33,34,-1,-1,-1},  // 0
-   {13,20,21,22,23,24,-1,-1,-1,-1,-1,-1,-1},  // 1
-   {10,11,14,20,22,24,30,33,-1,-1,-1,-1,-1},  // 2
-   {10,14,20,22,24,31,33,-1,-1,-1,-1,-1,-1},  // 3
-   {12,13,14,22,30,31,32,33,34,-1,-1,-1,-1},  // 4
-   {10,12,13,14,20,22,24,31,34,-1,-1,-1,-1},  // 5
-   {10,11,12,13,20,22,24,30,31,32,34,-1,-1},  // 6
-   {10,11,14,22,24,33,34,-1,-1,-1,-1,-1,-1},  // 7
-   {10,11,12,13,14,20,22,24,30,31,32,33,34},  // 8
-   {10,12,13,14,20,22,24,31,32,33,34,-1,-1}   // 9
+#define MATRIX_ALPHABET_SIZE 36
+int matrixAlphabet[MATRIX_ALPHABET_SIZE][13] = {
+  {10,11,12,13,20,24,31,32,33,34,-1,-1,-1}, // 0
+  {13,20,21,22,23,24,-1,-1,-1,-1,-1,-1,-1}, // 1
+  {10,11,14,20,22,24,30,33,-1,-1,-1,-1,-1}, // 2
+  {10,14,20,22,24,31,33,-1,-1,-1,-1,-1,-1}, // 3
+  {12,13,14,22,30,31,32,33,34,-1,-1,-1,-1}, // 4
+  {10,12,13,14,20,22,24,31,34,-1,-1,-1,-1}, // 5
+  {10,11,12,13,20,22,24,30,31,32,34,-1,-1}, // 6
+  {10,11,14,22,24,33,34,-1,-1,-1,-1,-1,-1}, // 7
+  {10,11,12,13,14,20,22,24,30,31,32,33,34}, // 8
+  {10,12,13,14,20,22,24,31,32,33,34,-1,-1}, // 9
+  {10,11,12,13,22,24,30,31,32,33,-1,-1,-1}, // A
+  {10,11,12,13,14,20,22,24,31,33,-1,-1,-1}, // B
+  {11,12,13,20,24,30,34,-1,-1,-1,-1,-1,-1}, // C
+  {10,11,12,13,14,20,24,31,32,33,-1,-1,-1}, // D
+  {10,11,12,13,14,20,22,24,30,32,34,-1,-1}, // E
+  {10,11,12,13,14,22,24,32,34,-1,-1,-1,-1}, // F
+  {11,12,13,20,22,24,30,31,32,34,-1,-1,-1}, // G
+  {10,11,12,13,14,22,30,31,32,33,34,-1,-1}, // H
+  {10,14,20,21,22,23,24,30,34,-1,-1,-1,-1}, // I
+  {11,20,31,32,33,34,-1,-1,-1,-1,-1,-1,-1}, // J
+  {10,11,12,13,14,22,30,31,33,34,-1,-1,-1}, // K
+  {10,11,12,13,14,20,30,-1,-1,-1,-1,-1,-1}, // L
+  {10,11,12,13,14,22,23,30,31,32,33,34,-1}, // M
+  {10,11,12,13,14,21,22,23,30,31,32,33,34}, // N
+  {11,12,13,20,24,31,32,33,-1,-1,-1,-1,-1}, // O
+  {10,11,12,13,14,22,24,33,-1,-1,-1,-1,-1}, // P
+  {11,12,13,20,21,24,30,31,32,33,-1,-1,-1}, // Q
+  {10,11,12,13,14,21,22,24,30,32,33,-1,-1}, // R
+  {10,13,20,22,24,31,34,-1,-1,-1,-1,-1,-1}, // S
+  {14,20,21,22,23,24,34,-1,-1,-1,-1,-1,-1}, // T
+  {11,12,13,14,20,30,31,32,33,34,-1,-1,-1}, // U
+  {12,13,14,20,21,32,33,34,-1,-1,-1,-1,-1}, // V
+  {10,11,12,13,14,21,22,30,31,32,33,34,-1}, // W
+  {10,11,13,14,22,30,31,33,34,-1,-1,-1,-1}, // X
+  {13,14,20,21,22,33,34,-1,-1,-1,-1,-1,-1}, // Y
+  {10,11,14,20,22,24,30,33,34,-1,-1,-1,-1}  // Z
 };
-#define MATRIX_NUMBERS_SIZE 13
 int currentLedNumber = 0;
+int currentLedLetterIndex = 11;
 int currentLedNumberStartColumn = 4;
 unsigned int currentLedNumberDurationMillis = 1000;
 unsigned int currentLedNumberStartMillis = 0;
@@ -91,15 +118,15 @@ void setupMatrix() {
 }
 
 // Displays a number in a column using a CRGB::.... color
-void matrixShowNumber(int number, int startColumn, unsigned int color) {
-  for(int i=0; i < MATRIX_NUMBERS_SIZE; i++) {
-    int currentLedPos = matrixNumbers[number][i];
+void matrixShowNumber(int index, int startColumn, int startRow, unsigned int color) {
+  for(int i=0; i < MATRIX_ALPHABET_SIZE; i++) {
+    int currentLedPos = matrixAlphabet[index][i];
 
     if(currentLedPos == -1) {
       break;
     }
 
-    matrixLeds[currentLedPos + MATRIX_DIM * startColumn] = color;
+    matrixLeds[currentLedPos + MATRIX_DIM * startColumn + startRow] = color;
   }
 }
 
@@ -121,15 +148,27 @@ void loopMatrix() {
   }
 
   if(millis() > (currentLedNumberStartMillis + currentLedNumberDurationMillis)) {
+
+    // Show numbers
     int prevNumber = (currentLedNumber - 1) < 0 ? 9 : (currentLedNumber - 1);
-    matrixShowNumber(prevNumber, currentLedNumberStartColumn, CRGB::Black);
-    matrixShowNumber(currentLedNumber, currentLedNumberStartColumn, CRGB::Green);
-    currentLedNumberStartMillis = millis();
+    matrixShowNumber(prevNumber, currentLedNumberStartColumn, 0, CRGB::Black);
+    matrixShowNumber(currentLedNumber, currentLedNumberStartColumn, 0, CRGB::Blue);
 
     currentLedNumber++;
     if(currentLedNumber > 9) {
       currentLedNumber = 0;
     }
+
+    // Show letters
+    int prevLetterIndex = (currentLedLetterIndex - 1) < 0 ? MATRIX_ALPHABET_SIZE - 1 : (currentLedLetterIndex - 1);
+    matrixShowNumber(prevLetterIndex, currentLedNumberStartColumn + 1, 5, CRGB::Black);
+    matrixShowNumber(currentLedLetterIndex, currentLedNumberStartColumn + 1, 5, CRGB::DarkOrange);
+    currentLedLetterIndex++;
+    if(currentLedLetterIndex >= MATRIX_ALPHABET_SIZE) {
+      currentLedLetterIndex = 11;
+    }
+
+    currentLedNumberStartMillis = millis();
   }
 
 }
