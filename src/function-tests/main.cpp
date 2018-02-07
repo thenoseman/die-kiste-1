@@ -66,10 +66,10 @@ const int switchboardPins[] = { 2, 3, 4, 5, 6, 7 };
 int switchboardActiveOut = 0;
 int switchboardActiveIn = 0;
 
-// LED Numbers
+// LED Numbers and letters
 #define MATRIX_ALPHABET_SIZE 36
 #define MATRIX_ALPHABET_L_SIZE 13
-int matrixAlphabet[MATRIX_ALPHABET_SIZE][MATRIX_ALPHABET_L_SIZE] = {
+const int matrixAlphabet[MATRIX_ALPHABET_SIZE][MATRIX_ALPHABET_L_SIZE] = {
   {10,11,12,13,20,24,31,32,33,34,-1,-1,-1}, // 0
   {13,20,21,22,23,24,-1,-1,-1,-1,-1,-1,-1}, // 1
   {10,11,14,20,22,24,30,33,-1,-1,-1,-1,-1}, // 2
