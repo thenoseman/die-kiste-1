@@ -1,7 +1,11 @@
 #include "State.h"
 
+extern HardwareSerial Serial;
+
 State::State(unsigned int initialState)
 {
+  currentState = initialState;
+  statechangesIndex= 0;
 }
 
 
@@ -39,8 +43,7 @@ void State::changeToState(unsigned int state)
 
 void State::tick()
 {
-  if (statechanges[0].msec >= millis()) {
-
+  if (statechanges[0].msec <= millis()) {
     currentState = statechanges[0].state;
 
     // move index 1-n up

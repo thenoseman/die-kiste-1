@@ -4,12 +4,6 @@
 
 extern HardwareSerial Serial;
 
-#define GAME_NOGAME 0
-#define GAME_SWITCHBOARD 1
-
-// All games
-const byte games[] = { GAME_SWITCHBOARD };
-
 // Global game state
 State state = State(0);
 
@@ -17,12 +11,13 @@ void setup()
 {
   Serial.begin(9600);
   randomSeed(analogRead(3));
-  state.changeToState(1, 3000);
+  state.changeToState(1, 10000);
+  state.changeToState(2, 15000);
+  state.changeToState(3, 20000);
 }
 
 void loop()
 {
   state.tick();
-  Serial.print("Current state = ");
   Serial.println(state.currentState);
 }
