@@ -1,7 +1,30 @@
 #include <Arduino.h>
 #include "State.h"
 
-extern HardwareSerial Serial;
+#ifdef DEBUG
+  #include <HardwareSerial.h>
+  extern HardwareSerial Serial;
+#endif
+
+/*
+ * Usage:
+ * 
+ * State state = State(0);
+ *
+ * unsigned int aCallback(statechange state) {
+ *   // Returning 0 will use the value from the call to changeToState(int, int, func)
+ *
+ *   return 41;
+ * }
+ *
+ * void loop() {
+ *   state.tick();
+ *
+ *   if (state.state == 42) { ... }
+ *
+ *   state.changeToState(4711, 1000, aCallback);
+ * }
+ */
 
 State::State(unsigned int initialState)
 {
@@ -9,23 +32,19 @@ State::State(unsigned int initialState)
   statechangesIndex = 0;
 }
 
-
-State::~State()
-{
-}
-
-
-void State::changeToState(unsigned int state, const unsigned long nextInMillis)
-{
-  changeToState(state, nextInMillis, this->dummyCbFunc);
-}
-
-
+// Change the state to <state>
 void State::changeToState(unsigned int state)
 {
   changeToState(state, 0);
 }
 
+// Change the state to <state> in <nextInMillis> milliseconds
+void State::changeToState(unsigned int state, const unsigned long nextInMillis)
+{
+  changeToState(state, nextInMillis, this->dummyCbFunc);
+}
+
+// Change the state to <state> or the return value od <cbFunc> in <nextInMillis> milliseconds
 void State::changeToState(const unsigned int state, const unsigned long nextInMillis, unsigned int (*cbFunc)(const statechange state))
 {
   unsigned long nextStateInMillis = millis() + nextInMillis;
@@ -46,7 +65,7 @@ void State::changeToState(const unsigned int state, const unsigned long nextInMi
   statechangesIndex++;
 }
 
-
+// This needs to be called at the bottom of the Arduino standard "void loop()"
 void State::tick()
 {
   if (statechangesIndex > 0 && statechanges[0].msec <= millis()) {

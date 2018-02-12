@@ -21,7 +21,6 @@ class State {
     unsigned int currentState;
 
     State(unsigned int initalState);
-    ~State();
 
     // change state NOW
     void changeToState(const unsigned int nextState);

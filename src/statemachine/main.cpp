@@ -9,7 +9,7 @@ State state = State(0);
 
 unsigned int blubb(statechange state) {
   Serial.println("BLUBB");
-  return 1;
+  return 10;
 }
 
 void setup()
