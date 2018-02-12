@@ -11,8 +11,8 @@ struct statechange
 
 class State {
   private:
-    unsigned int nextState;
-    unsigned long nextStateInMillis;
+    struct statechange statechanges[10];
+    unsigned int statechangesIndex = 0;
 
   public:
     unsigned int currentState;
