@@ -7,6 +7,7 @@
 class Matrix {
   private:
 
+    // Must set these until I really get cpp classes constructors
     static const int dinPin = PIN_A2;
     static const int numLeds = 100;
     static const int brightness = 5;
@@ -14,6 +15,8 @@ class Matrix {
     static const int sizeXY = 10;
     static const int alphaLength = 36;
     static const int alphaElementSize = 13;
+
+    uint8_t changed = 0;
 
     // LED Numbers and letters
     const int alpha[alphaLength][alphaElementSize] = {
@@ -69,11 +72,19 @@ class Matrix {
 
     CRGB leds[numLeds];
 
+    // TODO: pass dinPin and numLeds and brightness in constructor
+    //       FastLED doesn't like it??!
     Matrix();
+
+    // show a LETTER/NUMBER
     void show(int alphaIndex, int startColumn, int startRow, CRGB color);
     void show(char letter, int startColumn, int startRow, CRGB color);
     void show(char letter);
-    void showSpecial(int special[], int startColumn, int startRow, CRGB color);
+
+    // Show a picture
+    void picture(int picture[], int startColumn, int startRow, CRGB color);
+
+    // This must be run on every loop()
     void update();
 };
 #endif
