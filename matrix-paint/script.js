@@ -87,7 +87,7 @@ $("#export").on("click", function() {
 $(document).on("click", ".load", function() {
   var code = $(this).prev().val().split(",");
   drawCode(code);
-  $("textarea").val("byte ledsToTurnOn[" + code.length + "] = {" + code.join(",") + "};");
+  $("textarea").val("const int leds[" + code.length + "] = {" + code.join(",") + "};");
   window.code = code;
 });
 
