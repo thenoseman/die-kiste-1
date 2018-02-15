@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <FastLED.h>
-#include "State.h"
 
 extern HardwareSerial Serial;
 
@@ -28,26 +27,62 @@ extern HardwareSerial Serial;
 //                     | NANO-V3                        |
 //                     +--------------------------------+
 
-const byte alphaElementSize = 13;
-const byte matrixDinPin = A2;
-const byte numLeds = 100;
-const byte matrixLedBrightness = 5;
-byte ledsModified = 0;
+const int alphaElementSize = 14;
+const int matrixDinPin = A2;
+const int numLeds = 100;
+const int matrixLedBrightness = 5;
+int ledsModified = 0;
 CRGB leds[numLeds];
 
 // Global game state
-State state = State(0);
-byte activeGame = 0;
+int activeGame = 0;
 long numberOfGames = 1;
+unsigned long now;
 
-// VARS: Switchboard
-const byte gameSwitchboardPinValues[] = { 2, 4, 8, 16, 32, 64 };
+const int gameSwitchboardPins[] = { 2, 3, 4, 5, 6, 7 };
+const int gameSwitchboardPinValues[] = { 2, 4, 8, 16, 32, 64 };
+const int gameSwitchboardPinNum = 6;
+int gameSwitchboardPinActive1 = 0;
+int gameSwitchboardPinActive2 = 0;
 typedef struct SwitchBoard {
-  byte activePin1;
-  byte activePin2;
-  byte number;
+  int activePin1;
+  int activePin2;
+  int number;
 } Switchboard;
 Switchboard switchboard = { .activePin1 = 0, .activePin2 = 0 };
+
+typedef struct State {
+  unsigned int current;
+  unsigned int next;
+  unsigned long nextStateAtMsec;
+} State;
+State state = { .current = 0, .next = 0, .nextStateAtMsec = 0};
+
+void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
+  if (state.next != nextState) {
+    state.nextStateAtMsec = millis() + nextStateInMsec;
+    state.next = nextState;
+
+    #ifdef DEBUG
+      Serial.print("changeStateTo: next = ");  
+      Serial.print(state.next);
+      Serial.print(", at msec = ");
+      Serial.println(state.nextStateAtMsec);
+    #endif
+  }
+} /*}}} */
+
+void updateState() { /*{{{*/
+  if (state.nextStateAtMsec > 0 && state.nextStateAtMsec <= millis()) {
+    state.current = state.next;
+    state.nextStateAtMsec = 0;
+    state.next = 0;
+    #ifdef DEBUG
+      Serial.print("updateState: state.current = ");
+      Serial.println(state.current);
+    #endif
+  }
+} /*}}} */
 
 /* alpha {{{*/
 const int alpha[36][alphaElementSize] = {
@@ -59,7 +94,7 @@ const int alpha[36][alphaElementSize] = {
   {10,12,13,14,20,22,24,31,34,-1,-1,-1,-1}, // 5
   {10,11,12,13,20,22,24,30,31,32,34,-1,-1}, // 6
   {10,11,14,22,24,33,34,-1,-1,-1,-1,-1,-1}, // 7
-  {10,11,12,13,14,20,22,24,30,31,32,33,34}, // 8
+  {10,11,12,13,14,20,22,24,30,31,32,33,34,-1}, // 8
   {10,12,13,14,20,22,24,31,32,33,34,-1,-1}, // 9
   {10,11,12,13,22,24,30,31,32,33,-1,-1,-1}, // A
   {10,11,12,13,14,20,22,24,31,33,-1,-1,-1}, // B
@@ -74,7 +109,7 @@ const int alpha[36][alphaElementSize] = {
   {10,11,12,13,14,22,30,31,33,34,-1,-1,-1}, // K
   {10,11,12,13,14,20,30,-1,-1,-1,-1,-1,-1}, // L
   {10,11,12,13,14,22,23,30,31,32,33,34,-1}, // M
-  {10,11,12,13,14,21,22,23,30,31,32,33,34}, // N
+  {10,11,12,13,14,21,22,23,30,31,32,33,34,-1}, // N
   {11,12,13,20,24,31,32,33,-1,-1,-1,-1,-1}, // O
   {10,11,12,13,14,22,24,33,-1,-1,-1,-1,-1}, // P
   {11,12,13,20,21,24,30,31,32,33,-1,-1,-1}, // Q
@@ -104,14 +139,14 @@ const int matrixPicBox[38] = {1,2,3,4,5,6,11,16,17,21,26,28,31,36,39,41,46,49,51
 void matrixSetByIndex(int alphaIndex, int startColumn, int startRow, CRGB color) /*{{{*/{
   ledsModified = 1;
   
-  for(int i=0; i < alphaElementSize ; i++) {
+  for(int i = 0; i < alphaElementSize; i++) {
     int currentLedPos = alpha[alphaIndex][i];
 
     if(currentLedPos == -1) {
       break;
     }
 
-    leds[currentLedPos + ( (numLeds/numLeds) * startColumn ) + startRow] = color;
+    leds[currentLedPos + ( (numLeds/2) * startColumn ) + startRow] = color;
   }
 } /*}}}*/
 
@@ -134,7 +169,7 @@ void matrix_setup() /*{{{*/{
 
 void game_setup() {/*{{{*/
   randomSeed(analogRead(4));
-  state.changeToState(1);
+  changeStateTo(1, 1);
 } /*}}}*/
 
 void setup() /*{{{*/
@@ -148,26 +183,25 @@ void setup() /*{{{*/
 void game_intro_loop() { /*{{{*/
   #ifdef DEBUG
     Serial.print("game_intro_loop: state = ");
-    Serial.println(state.currentState);
+    Serial.println(state.current);
   #endif
 
-  switch (state.currentState) {
+  switch (state.current) {
     case 1:
       matrixSetByArray(matrixPicBig3, 0, 0, CRGB::Red);
-      state.changeToState(2, 1000);
+      changeStateTo(2, 1000);
       break;
     case 2:
       matrixSetByArray(matrixPicBig2, 0, 0, CRGB::Orange);
-      state.changeToState(3, 1000);
+      changeStateTo(3, 1000);
       break;
     case 3:
       matrixSetByArray(matrixPicBig1, 0, 0, CRGB::Yellow);
-      state.changeToState(4, 1000);
+      changeStateTo(4, 1000);
       break;
     case 4:
       matrixSetByArray(matrixPicRunner, 0, 0, CRGB::Green);
-      // reset intro state and forward global state
-      //state.changeToState(10, 1000);
+      changeStateTo(10, 1000);
       break;
   }
 } /*}}}*/
@@ -176,19 +210,21 @@ void game_choose() { /*{{{*/
   activeGame = random(1, numberOfGames + 1); 
 
   // Every game has 20 possible states
-  state.changeToState(activeGame * 20);
+  changeStateTo(activeGame * 20, 1);
 
   #ifdef DEBUG
     Serial.print("game_choose: activeGame = ");
-    Serial.println(activeGame);
+    Serial.print(activeGame);
+    Serial.print(", nextState = ");
+    Serial.println(state.next);
   #endif
 } /*}}} */
 
 void game_switchboard_reset() { /*{{{*/
-  switchboard.activePin1 = random(0, 6);
+  switchboard.activePin1 = random(0, gameSwitchboardPinNum);
 
   do {
-    switchboard.activePin2 = random(0, 6);
+    switchboard.activePin2 = random(0, gameSwitchboardPinNum);
   } while(switchboard.activePin1 == switchboard.activePin2);
 
   switchboard.number = gameSwitchboardPinValues[switchboard.activePin1] + gameSwitchboardPinValues[switchboard.activePin2];
@@ -202,17 +238,80 @@ void game_switchboard_reset() { /*{{{*/
     Serial.println(switchboard.number);
   #endif
 
-  matrixSetByIndex((switchboard.number/10), 0, 4, CRGB::Yellow);
-  matrixSetByIndex((switchboard.number%10), 5, 4, CRGB::Yellow);
+  // Reset all Pins as INPUTs
+  for (int i=0; i < gameSwitchboardPinNum; i++) {
+    pinMode(gameSwitchboardPins[i], INPUT_PULLUP);
+  }
+  gameSwitchboardPinActive1 = 0;
+  gameSwitchboardPinActive2 = 0;
 
-  state.changeToState(21);
+  // Display target number
+  //matrixSetByIndex((switchboard.number/10), 0, 4, CRGB::Yellow);
+  //matrixSetByIndex((switchboard.number%10), 5, 4, CRGB::Yellow);
+
+  // Start game loop
+  changeStateTo(21, 1);
 } /*}}} */
 
+// STATE: 21+
 void game_switchboard_loop() { /*{{{*/
+  // Reset
+  int inputPinReadout = LOW;
+
+  // Loop all pins switching one as OUTPUT
+  for(int outputPinIndex=0; outputPinIndex < gameSwitchboardPinNum && gameSwitchboardPinActive1 == 0; outputPinIndex++) {
+
+    Serial.print("outputPinIndex = ");
+    Serial.println(outputPinIndex);
+
+    // set the output pin LOW
+    pinMode(gameSwitchboardPins[outputPinIndex], OUTPUT);
+    digitalWrite(gameSwitchboardPins[outputPinIndex], LOW);
+
+    for(int inputPinIndex = outputPinIndex+1; inputPinIndex < gameSwitchboardPinNum && gameSwitchboardPinActive1 == 0; inputPinIndex++) {
+
+      // Don't switch to INPUT for the pin that is currently OUTPUT
+      if(inputPinIndex == outputPinIndex) {
+        continue;
+      }
+
+    Serial.print("inputPinIndex = ");
+    Serial.println(inputPinIndex);
+
+      pinMode(gameSwitchboardPins[inputPinIndex], INPUT_PULLUP);
+
+      inputPinReadout = digitalRead(gameSwitchboardPins[inputPinIndex]);
+
+      if (inputPinReadout == LOW) {
+        gameSwitchboardPinActive1 = inputPinIndex;
+        gameSwitchboardPinActive2 = outputPinIndex;
+
+        #ifdef DEBUG
+          Serial.print("game_switchboard_loop: Connection from IN ");
+          Serial.print(gameSwitchboardPinActive1);
+          Serial.print(" (");
+          Serial.print(gameSwitchboardPins[gameSwitchboardPinActive1]);
+          Serial.print(") to OUT ");
+          Serial.print(gameSwitchboardPinActive2);
+          Serial.print(" (");
+          Serial.print(gameSwitchboardPins[gameSwitchboardPinActive2]);
+          Serial.println(")");
+        #endif
+      }
+    }
+
+    // Set last loop pin to INPUT again
+    pinMode(gameSwitchboardPins[outputPinIndex], INPUT_PULLUP);
+  }
+
+  // Connection found?
+  if(gameSwitchboardPinActive1 > 0 || gameSwitchboardPinActive2 > 0) {
+    Serial.println("CONNECTION"); 
+  }
 } /*}}} */
 
 void game_master_loop() { /*{{{*/
-  switch (state.currentState) {
+  switch (state.current) {
     case 1 ... 9:
       game_intro_loop();
       break;
@@ -223,16 +322,15 @@ void game_master_loop() { /*{{{*/
       game_switchboard_reset();
       break;
     case 21 ... 39:
-      Serial.println("GAME: SWITCHBOARD");
       game_switchboard_loop();
       break;
   }
 } /*}}} */
 
-void loop()
+void loop() /*{{{*/
 {
   // advance state
-  state.tick();
+  updateState();
 
   // Reset all LEDs
   if (ledsModified == 1) {
@@ -247,4 +345,4 @@ void loop()
   if (ledsModified == 1) {
     FastLED.show();
   }
-}
+} /*}}}*/
