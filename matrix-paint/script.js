@@ -26,19 +26,32 @@ for (var o = 0; o < matrixSize; o++) {
 }
 $("table").append("<tr><td>↑ DIN</td><td colspan='" + (matrixSize - 1) + "'></td></tr>");
 
-$("#container td").on("click", function() {
-  $(this).toggleClass("active");
-
+var displayCode = function() {
   var code = [];
+  var bCode = [];
+  var cByte = 0;
+
   for (var l = 0; l < matrixSize * matrixSize; l++) {
     var isActive = $("[data-i='" + l + "']").hasClass("active");
+
     if (isActive) {
+      cByte = (cByte | Math.pow(2,(l % 8)));
       code.push(l);
+    }
+
+    if (l > 0 && (l+1) % 8 === 0) {
+      bCode.push(cByte);
+      cByte = 0;
     }
   }
 
-  $("textarea").val("byte ledsToTurnOn[] = {" + code.join(",") + "};");
+  $("textarea").val("int ledsToTurnOn[] = {" + code.join(",") + "};\n\nbyte binary[] = {" + bCode.join(",") + "};");
   window.code = code;
+};
+
+$("#container td").on("click", function() {
+  $(this).toggleClass("active");
+  displayCode();
 });
 
 $("#save").on("click", function() {
@@ -87,8 +100,7 @@ $("#export").on("click", function() {
 $(document).on("click", ".load", function() {
   var code = $(this).prev().val().split(",");
   drawCode(code);
-  $("textarea").val("const int leds[" + code.length + "] = {" + code.join(",") + "};");
-  window.code = code;
+  displayCode();
 });
 
 $(document).on("click", ".delete", function() {
