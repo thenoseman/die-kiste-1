@@ -39,13 +39,21 @@ var displayCode = function() {
       code.push(l);
     }
 
-    if (l > 0 && (l+1) % 8 === 0) {
+    if (l > 0 && (l + 1) % 8 === 0) {
       bCode.push(cByte);
       cByte = 0;
     }
   }
 
-  $("textarea").val("int ledsToTurnOn[] = {" + code.join(",") + "};\n\nbyte binary[] = {" + bCode.join(",") + "};");
+  for (var i = 11; i > 0; i--) {
+    if (bCode[i] === 0) {
+      delete bCode[i];
+    } else {
+      break;
+    }
+  }
+
+  $("textarea").val("int ledsToTurnOn[] = {" + code.join(",") + "};\n\nbyte binary[] = {" + bCode.filter(function(n){ return n != undefined }).join(",") + "};");
   window.code = code;
 };
 
@@ -54,12 +62,16 @@ $("#container td").on("click", function() {
   displayCode();
 });
 
-$("#save").on("click", function() {
-  var name = $("[name=name]").val();
+var save = function(aname) {
+  var name = aname || $("[name=name]").val();
   var pictures = JSON.parse(window.localStorage.getItem("pictures")) || {};
   pictures[name] = window.code;
   window.localStorage.setItem("pictures", JSON.stringify(pictures));
   showSaved();
+};
+
+$("#save").on("click", function() {
+  save();
 });
 
 var drawCode = function(code) {
@@ -108,6 +120,17 @@ $(document).on("click", ".delete", function() {
   delete pictures[this.dataset.name];
   window.localStorage.setItem("pictures", JSON.stringify(pictures));
   showSaved();
+});
+
+$("#import").on("click", function() {
+  var matches = $("textarea").val().match(/\{([0-9 ,]+)\}/g);
+  var code = [];
+  matches.forEach(function(match, i2) {
+    code.push("byte imported[] = " + match + ";");
+    window.code = match.replace(/[{}]/,"").split(",");
+    save("imported-" + i2);
+  });
+  $("textarea").val(code.join("\n"));
 });
 
 showSaved();
