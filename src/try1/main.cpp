@@ -12,12 +12,12 @@ extern HardwareSerial Serial;
 //                     | [ ]V.ref     ___     SS/D10[ ]~| -> arcadeBtnsLeds[1]
 // PRESSURE_LED_PIN <- | [ ]A0       / N \        D9[ ]~| <- arcadeBtnsDin[0]
 // PRESSURE_BTN_PIN -> | [ ]A1      /  A  \       D8[ ] | -> arcadeBtnsLeds[0]
-// MATRIX_LED_PIN   <- | [ ]A2      \  N  /       D7[ ] | <- switchboardPins[5]
-//                     | [ ]A3       \_0_/        D6[ ]~| <- switchboardPins[4]
-//     potiPins[0]  -> | [ ]A4/SDA                D5[ ]~| <- switchboardPins[3]
-//     potiPins[1]  -> | [ ]A5/SCL                D4[ ] | <- switchboardPins[2]
-//     potiPins[2]  -> | [ ]A6 (noDIn)       INT1/D3[ ]~| <- switchboardPins[1]
-//     potiPins[3]  -> | [ ]A7 (noDIn)       INT0/D2[ ] | <- switchboardPins[0]
+// MATRIX_LED_PIN   <- | [ ]A2      \  N  /       D7[ ] | <- switchboardPins[5] => 64
+//                     | [ ]A3       \_0_/        D6[ ]~| <- switchboardPins[4] => 32
+//     potiPins[0]  -> | [ ]A4/SDA                D5[ ]~| <- switchboardPins[3] => 16
+//     potiPins[1]  -> | [ ]A5/SCL                D4[ ] | <- switchboardPins[2] => 8
+//     potiPins[2]  -> | [ ]A6 (noDIn)       INT1/D3[ ]~| <- switchboardPins[1] => 4
+//     potiPins[3]  -> | [ ]A7 (noDIn)       INT0/D2[ ] | <- switchboardPins[0] => 2
 //                     | [ ]5V                   GND[ ] |
 //                     | [ ]RST                  RST[ ] |
 //                     | [ ]GND   5V MOSI GND D0/RX1[ ] |
@@ -85,43 +85,43 @@ void updateState() { /*{{{*/
 } /*}}} */
 
 /* alpha {{{*/
-const int alpha[36][alphaElementSize] = {
-  {10,11,12,13,20,24,31,32,33,34,-1,-1,-1}, // 0
-  {13,20,21,22,23,24,-1,-1,-1,-1,-1,-1,-1}, // 1
-  {10,11,14,20,22,24,30,33,-1,-1,-1,-1,-1}, // 2
-  {10,14,20,22,24,31,33,-1,-1,-1,-1,-1,-1}, // 3
-  {12,13,14,22,30,31,32,33,34,-1,-1,-1,-1}, // 4
-  {10,12,13,14,20,22,24,31,34,-1,-1,-1,-1}, // 5
-  {10,11,12,13,20,22,24,30,31,32,34,-1,-1}, // 6
-  {10,11,14,22,24,33,34,-1,-1,-1,-1,-1,-1}, // 7
-  {10,11,12,13,14,20,22,24,30,31,32,33,34,-1}, // 8
-  {10,12,13,14,20,22,24,31,32,33,34,-1,-1}, // 9
-  {10,11,12,13,22,24,30,31,32,33,-1,-1,-1}, // A
-  {10,11,12,13,14,20,22,24,31,33,-1,-1,-1}, // B
-  {11,12,13,20,24,30,34,-1,-1,-1,-1,-1,-1}, // C
-  {10,11,12,13,14,20,24,31,32,33,-1,-1,-1}, // D
-  {10,11,12,13,14,20,22,24,30,32,34,-1,-1}, // E
-  {10,11,12,13,14,22,24,32,34,-1,-1,-1,-1}, // F
-  {11,12,13,20,22,24,30,31,32,34,-1,-1,-1}, // G
-  {10,11,12,13,14,22,30,31,32,33,34,-1,-1}, // H
-  {10,14,20,21,22,23,24,30,34,-1,-1,-1,-1}, // I
-  {11,20,31,32,33,34,-1,-1,-1,-1,-1,-1,-1}, // J
-  {10,11,12,13,14,22,30,31,33,34,-1,-1,-1}, // K
-  {10,11,12,13,14,20,30,-1,-1,-1,-1,-1,-1}, // L
-  {10,11,12,13,14,22,23,30,31,32,33,34,-1}, // M
-  {10,11,12,13,14,21,22,23,30,31,32,33,34,-1}, // N
-  {11,12,13,20,24,31,32,33,-1,-1,-1,-1,-1}, // O
-  {10,11,12,13,14,22,24,33,-1,-1,-1,-1,-1}, // P
-  {11,12,13,20,21,24,30,31,32,33,-1,-1,-1}, // Q
-  {10,11,12,13,14,21,22,24,30,32,33,-1,-1}, // R
-  {10,13,20,22,24,31,34,-1,-1,-1,-1,-1,-1}, // S
-  {14,20,21,22,23,24,34,-1,-1,-1,-1,-1,-1}, // T
-  {11,12,13,14,20,30,31,32,33,34,-1,-1,-1}, // U
-  {12,13,14,20,21,32,33,34,-1,-1,-1,-1,-1}, // V
-  {10,11,12,13,14,21,22,30,31,32,33,34,-1}, // W
-  {10,11,13,14,22,30,31,33,34,-1,-1,-1,-1}, // X
-  {13,14,20,21,22,33,34,-1,-1,-1,-1,-1,-1}, // Y
-  {10,11,14,20,22,24,30,33,34,-1,-1,-1,-1}  // Z
+const unsigned int alpha[10][alphaElementSize] = {
+  {10,11,12,13,20,24,31,32,33,34,255}, // 0
+  {13,20,21,22,23,24,255}, // 1
+  {10,11,14,20,22,24,30,33,255}, // 2
+  {10,14,20,22,24,31,33,255}, // 3
+  {12,13,14,22,30,31,32,33,34,255}, // 4
+  {10,12,13,14,20,22,24,31,34,255}, // 5
+  {10,11,12,13,20,22,24,30,31,32,34,255}, // 6
+  {10,11,14,22,24,33,34,255}, // 7
+  {10,11,12,13,14,20,22,24,30,31,32,33,34,255}, // 8
+  {10,12,13,14,20,22,24,31,32,33,34,255}, // 9
+  //{10,11,12,13,22,24,30,31,32,33,255}, // A
+  //{10,11,12,13,14,20,22,24,31,33,255}, // B
+  //{11,12,13,20,24,30,34,255}, // C
+  //{10,11,12,13,14,20,24,31,32,33,255}, // D
+  //{10,11,12,13,14,20,22,24,30,32,34,255}, // E
+  //{10,11,12,13,14,22,24,32,34,255}, // F
+  //{11,12,13,20,22,24,30,31,32,34,255}, // G
+  //{10,11,12,13,14,22,30,31,32,33,34,255}, // H
+  //{10,14,20,21,22,23,24,30,34,255}, // I
+  //{11,20,31,32,33,34,255}, // J
+  //{10,11,12,13,14,22,30,31,33,34,255}, // K
+  //{10,11,12,13,14,20,30,255}, // L
+  //{10,11,12,13,14,22,23,30,31,32,33,34,255}, // M
+  //{10,11,12,13,14,21,22,23,30,31,32,33,34,255}, // N
+  //{11,12,13,20,24,31,32,33,255}, // O
+  //{10,11,12,13,14,22,24,33,255}, // P
+  //{11,12,13,20,21,24,30,31,32,33,255}, // Q
+  //{10,11,12,13,14,21,22,24,30,32,33,255}, // R
+  //{10,13,20,22,24,31,34,255}, // S
+  //{14,20,21,22,23,24,34,255}, // T
+  //{11,12,13,14,20,30,31,32,33,34,255}, // U
+  //{12,13,14,20,21,32,33,34,255}, // V
+  //{10,11,12,13,14,21,22,30,31,32,33,34,255}, // W
+  //{10,11,13,14,22,30,31,33,34,255}, // X
+  //{13,14,20,21,22,33,34,255}, // Y
+  //{10,11,14,20,22,24,30,33,34,255}  // Z
 };
 /*}}}*/
 
@@ -136,17 +136,18 @@ const int matrixPicSkull[44] = {14,15,16,17,18,22,23,24,25,26,28,29,33,34,35,36,
 const int matrixPicBox[38] = {1,2,3,4,5,6,11,16,17,21,26,28,31,36,39,41,46,49,51,52,53,54,55,56,59,62,67,69,73,78,79,84,85,86,87,88,89,-1};
 /*}}}*/
 
-void matrixSetByIndex(int alphaIndex, int startColumn, int startRow, CRGB color) /*{{{*/{
+void matrixSetByIndex(unsigned int alphaIndex, int startColumn, int startRow, CRGB color) /*{{{*/{
   ledsModified = 1;
+  int currentLedPos = 0;
   
   for(int i = 0; i < alphaElementSize; i++) {
-    int currentLedPos = alpha[alphaIndex][i];
+    currentLedPos = alpha[alphaIndex][i];
 
-    if(currentLedPos == -1) {
+    if(currentLedPos == 255) {
       break;
     }
 
-    leds[currentLedPos + ( (numLeds/2) * startColumn ) + startRow] = color;
+    leds[currentLedPos + ( 10 * startColumn ) + startRow] = color;
   }
 } /*}}}*/
 
@@ -200,7 +201,7 @@ void game_intro_loop() { /*{{{*/
       changeStateTo(4, 1000);
       break;
     case 4:
-      matrixSetByArray(matrixPicRunner, 0, 0, CRGB::Green);
+      matrixSetByArray(matrixPicRunner, 1, 0, CRGB::Green);
       changeStateTo(10, 1000);
       break;
   }
@@ -246,8 +247,8 @@ void game_switchboard_reset() { /*{{{*/
   gameSwitchboardPinActive2 = 0;
 
   // Display target number
-  //matrixSetByIndex((switchboard.number/10), 0, 4, CRGB::Yellow);
-  //matrixSetByIndex((switchboard.number%10), 5, 4, CRGB::Yellow);
+  matrixSetByIndex((switchboard.number/10), 1, 0, CRGB::Yellow);
+  matrixSetByIndex((switchboard.number%10), 5, 0, CRGB::Yellow);
 
   // Start game loop
   changeStateTo(21, 1);
@@ -261,9 +262,6 @@ void game_switchboard_loop() { /*{{{*/
   // Loop all pins switching one as OUTPUT
   for(int outputPinIndex=0; outputPinIndex < gameSwitchboardPinNum && gameSwitchboardPinActive1 == 0; outputPinIndex++) {
 
-    Serial.print("outputPinIndex = ");
-    Serial.println(outputPinIndex);
-
     // set the output pin LOW
     pinMode(gameSwitchboardPins[outputPinIndex], OUTPUT);
     digitalWrite(gameSwitchboardPins[outputPinIndex], LOW);
@@ -274,9 +272,6 @@ void game_switchboard_loop() { /*{{{*/
       if(inputPinIndex == outputPinIndex) {
         continue;
       }
-
-    Serial.print("inputPinIndex = ");
-    Serial.println(inputPinIndex);
 
       pinMode(gameSwitchboardPins[inputPinIndex], INPUT_PULLUP);
 
@@ -306,7 +301,7 @@ void game_switchboard_loop() { /*{{{*/
 
   // Connection found?
   if(gameSwitchboardPinActive1 > 0 || gameSwitchboardPinActive2 > 0) {
-    Serial.println("CONNECTION"); 
+    matrixSetByArray(matrixPicSmileyPositive, 0,0, CRGB::Green);
   }
 } /*}}} */
 
