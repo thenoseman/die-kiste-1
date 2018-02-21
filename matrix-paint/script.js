@@ -39,17 +39,9 @@ var displayCode = function() {
       code.push(l);
     }
 
-    if (l > 0 && (l + 1) % 8 === 0) {
+    if (l > 0 && (l + 1) % 8 === 0 || l === (matrixSize * matrixSize) - 1) {
       bCode.push(cByte);
       cByte = 0;
-    }
-  }
-
-  for (var i2 = 11; i2 > 0; i2--) {
-    if (bCode[i2] === 0) {
-      delete bCode[i2];
-    } else {
-      break;
     }
   }
 
@@ -58,11 +50,11 @@ var displayCode = function() {
   });
 
   var le = bytesFiltered.length;
-  for (var i3 = le; i3 < 12; i3++) {
+  for (var i3 = le; i3 < 13; i3++) {
     bytesFiltered.push(0);
   }
 
-  $("textarea").val("int ledsToTurnOn[] = {" + code.join(",") + "};\n\nbyte binary[12] = {" + bytesFiltered.join(",") + "};");
+  $("textarea").val("byte binary[12] = {" + bytesFiltered.join(",") + "};");
   window.code = code;
 };
 
