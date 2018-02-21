@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <FastLED.h>
+#include <PGMWrap.h>
 
 extern HardwareSerial Serial;
 
@@ -27,7 +28,6 @@ extern HardwareSerial Serial;
 //                     | NANO-V3                        |
 //                     +--------------------------------+
 
-const int alphaElementSize = 14;
 const int matrixDinPin = A2;
 const int numLeds = 100;
 const int matrixLedBrightness = 5;
@@ -58,6 +58,29 @@ typedef struct State {
 } State;
 State state = { .current = 0, .next = 0, .nextStateAtMsec = 0};
 
+/* alpha {{{*/
+int8_p alpha[10][12] PROGMEM = {
+  {0,60,16,129,7,0,0,0,0,0,0,0}, // 0
+  {0,32,240,1,0,0,0,0,0,0,0,0}, // 1
+  {0,76,80,65,2,0,0,0,0,0,0,0}, // 2
+  {0,68,80,129,2,0,0,0,0,0,0,0}, // 3
+  {0,112,64,192,7,0,0,0,0,0,0,0}, // 4
+  {0,116,80,129,4,0,0,0,0,0,0,0}, // 5
+  {0,60,80,193,5,0,0,0,0,0,0,0}, // 6
+  {0,76,64,1,6,0,0,0,0,0,0,0}, // 7
+  {0,124,80,193,7,0,0,0,0,0,0,0}, // 8
+  {0,116,80,129,7,0,0,0,0,0,0,0}, // 9
+};
+/*}}}*/
+
+/* pictures {{{*/
+int8_p matrixPicBig3[12] PROGMEM = {0,0,96,155,109,182,217,230,159,127,0,0};
+int8_p matrixPicBig2[12] PROGMEM = {0,0,224,140,119,158,217,102,159,57,0,0};
+int8_p matrixPicBig1[12] PROGMEM = {0,0,96,140,113,254,249,103,128,1,0,0};
+int8_p matrixPicRunner[12] PROGMEM = {0,76,32,2,11,60,236,147,12,4,0,0};
+int8_p matrixPicSmileyPositive[12] PROGMEM = {252,248,119,249,230,251,239,191,249,229,254,241};
+/*}}}*/
+
 void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
   if (state.next != nextState) {
     state.nextStateAtMsec = millis() + nextStateInMsec;
@@ -84,83 +107,21 @@ void updateState() { /*{{{*/
   }
 } /*}}} */
 
-/* alpha {{{*/
-const unsigned int alpha[10][alphaElementSize] = {
-  {10,11,12,13,20,24,31,32,33,34,255}, // 0
-  {13,20,21,22,23,24,255}, // 1
-  {10,11,14,20,22,24,30,33,255}, // 2
-  {10,14,20,22,24,31,33,255}, // 3
-  {12,13,14,22,30,31,32,33,34,255}, // 4
-  {10,12,13,14,20,22,24,31,34,255}, // 5
-  {10,11,12,13,20,22,24,30,31,32,34,255}, // 6
-  {10,11,14,22,24,33,34,255}, // 7
-  {10,11,12,13,14,20,22,24,30,31,32,33,34,255}, // 8
-  {10,12,13,14,20,22,24,31,32,33,34,255}, // 9
-  //{10,11,12,13,22,24,30,31,32,33,255}, // A
-  //{10,11,12,13,14,20,22,24,31,33,255}, // B
-  //{11,12,13,20,24,30,34,255}, // C
-  //{10,11,12,13,14,20,24,31,32,33,255}, // D
-  //{10,11,12,13,14,20,22,24,30,32,34,255}, // E
-  //{10,11,12,13,14,22,24,32,34,255}, // F
-  //{11,12,13,20,22,24,30,31,32,34,255}, // G
-  //{10,11,12,13,14,22,30,31,32,33,34,255}, // H
-  //{10,14,20,21,22,23,24,30,34,255}, // I
-  //{11,20,31,32,33,34,255}, // J
-  //{10,11,12,13,14,22,30,31,33,34,255}, // K
-  //{10,11,12,13,14,20,30,255}, // L
-  //{10,11,12,13,14,22,23,30,31,32,33,34,255}, // M
-  //{10,11,12,13,14,21,22,23,30,31,32,33,34,255}, // N
-  //{11,12,13,20,24,31,32,33,255}, // O
-  //{10,11,12,13,14,22,24,33,255}, // P
-  //{11,12,13,20,21,24,30,31,32,33,255}, // Q
-  //{10,11,12,13,14,21,22,24,30,32,33,255}, // R
-  //{10,13,20,22,24,31,34,255}, // S
-  //{14,20,21,22,23,24,34,255}, // T
-  //{11,12,13,14,20,30,31,32,33,34,255}, // U
-  //{12,13,14,20,21,32,33,34,255}, // V
-  //{10,11,12,13,14,21,22,30,31,32,33,34,255}, // W
-  //{10,11,13,14,22,30,31,33,34,255}, // X
-  //{13,14,20,21,22,33,34,255}, // Y
-  //{10,11,14,20,22,24,30,33,34,255}  // Z
-};
-/*}}}*/
-
-/* pictures {{{*/
-const int matrixPicBig3[35] = {21,22,27,28,31,32,37,38,41,42,44,45,47,48,51,52,54,55,57,58,61,62,63,64,65,66,67,68,72,73,74,75,76,77,-1};
-const int matrixPicBig2[35] = {21,22,27,28,31,32,33,37,38,41,42,43,44,47,48,51,52,53,54,55,57,58,61,62,64,65,66,67,68,71,72,75,76,77,-1};
-const int matrixPicBig1[25] = {25,26,35,36,37,46,47,48,51,52,53,54,55,56,57,58,61,62,63,64,65,66,67,68,-1};
-const int matrixPicRunner[25] = {10,11,14,21,25,32,33,35,42,43,44,45,50,51,53,54,55,56,57,60,63,66,67,74,-1};
-const int matrixPicSmileyPositive[75] = {2,3,4,5,6,7,11,12,13,14,15,16,17,18,20,21,22,24,27,28,29,30,31,33,34,37,38,39,40,41,43,44,45,46,47,48,49,50,51,53,54,55,56,57,58,59,60,61,63,64,67,68,69,70,71,72,74,77,78,79,81,82,83,84,85,86,87,88,92,93,94,95,96,97,-1};
-const int matrixPicSmileyNegative[77] = {2,3,4,5,6,7,11,12,13,14,15,16,17,18,20,21,23,24,27,28,29,30,31,32,34,36,37,38,39,40,41,42,44,45,46,47,48,49,50,51,52,54,55,56,57,58,59,60,61,62,64,66,67,68,69,70,71,73,74,77,78,79,81,82,83,84,85,86,87,88,92,93,94,95,96,97,-1};
-const int matrixPicSkull[44] = {14,15,16,17,18,22,23,24,25,26,28,29,33,34,35,36,38,39,42,43,44,46,47,48,49,53,54,55,56,58,59,62,63,64,65,66,68,69,74,75,76,77,78,-1};
-const int matrixPicBox[38] = {1,2,3,4,5,6,11,16,17,21,26,28,31,36,39,41,46,49,51,52,53,54,55,56,59,62,67,69,73,78,79,84,85,86,87,88,89,-1};
-/*}}}*/
-
-void matrixSetByIndex(unsigned int alphaIndex, int startColumn, int startRow, CRGB color) /*{{{*/{
+void matrixSetByArray(int8_p picture[], int startColumn, int startRow, CRGB color) /*{{{*/{
   ledsModified = 1;
-  int currentLedPos = 0;
-  
-  for(int i = 0; i < alphaElementSize; i++) {
-    currentLedPos = alpha[alphaIndex][i];
 
-    if(currentLedPos == 255) {
-      break;
+  // Loop through all elements
+  for(int pByte = 0; pByte < 12; pByte++) {
+    for(int bit = 0; bit < 8; bit++) {
+      if (bitRead(picture[pByte], bit)) {
+        leds[(pByte * 8 + bit) + (10 * startColumn) + startRow] = color;
+      }
     }
-
-    leds[currentLedPos + ( 10 * startColumn ) + startRow] = color;
   }
 } /*}}}*/
 
-void matrixSetByArray(const int activeLeds[], int startColumn, int startRow, CRGB color) /*{{{*/{
-  ledsModified = 1;
-
-  for(int i=0; i < numLeds; i++) {
-    if (activeLeds[i] == -1) {
-      break;
-    }
-
-    leds[activeLeds[i] + ((numLeds/numLeds) * startColumn ) + startRow] = color;
-  }
+void matrixSetByIndex(int alphaIndex, int startColumn, int startRow, CRGB color) /*{{{*/{
+  matrixSetByArray(alpha[alphaIndex], startColumn, startRow, color);
 } /*}}}*/
 
 void matrix_setup() /*{{{*/{
@@ -182,11 +143,6 @@ void setup() /*{{{*/
 }/*}}}*/
 
 void game_intro_loop() { /*{{{*/
-  #ifdef DEBUG
-    Serial.print("game_intro_loop: state = ");
-    Serial.println(state.current);
-  #endif
-
   switch (state.current) {
     case 1:
       matrixSetByArray(matrixPicBig3, 0, 0, CRGB::Red);
