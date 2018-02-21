@@ -45,15 +45,24 @@ var displayCode = function() {
     }
   }
 
-  for (var i = 11; i > 0; i--) {
-    if (bCode[i] === 0) {
-      delete bCode[i];
+  for (var i2 = 11; i2 > 0; i2--) {
+    if (bCode[i2] === 0) {
+      delete bCode[i2];
     } else {
       break;
     }
   }
 
-  $("textarea").val("int ledsToTurnOn[] = {" + code.join(",") + "};\n\nbyte binary[] = {" + bCode.filter(function(n){ return n != undefined }).join(",") + "};");
+  var bytesFiltered = bCode.filter(function(n) {
+    return n !== undefined;
+  });
+
+  var le = bytesFiltered.length;
+  for (var i3 = le; i3 < 12; i3++) {
+    bytesFiltered.push(0);
+  }
+
+  $("textarea").val("int ledsToTurnOn[] = {" + code.join(",") + "};\n\nbyte binary[12] = {" + bytesFiltered.join(",") + "};");
   window.code = code;
 };
 
