@@ -34,9 +34,10 @@ typedef struct State {
   unsigned int next;
   unsigned long nextStateAtMsec;
   unsigned int score;
+  unsigned int lifes;
 } State;
 
-State state = { .current = 0, .next = 0, .nextStateAtMsec = 0, .score = 0};
+State state = { .current = 0, .next = 0, .nextStateAtMsec = 0, .score = 0, .lifes = 3};
 
 const int matrixDinPin = A2;
 const int numLeds = 100;
@@ -54,7 +55,7 @@ CRGB leds[numLeds];
 int activeGame = 0;
 
 // Total number of playable games
-long numberOfGames = 1;
+long numberOfGames = 2;
 
 // Number of PINS used for switchboard game
 const int gameSwitchboardPinNum = 6;
@@ -78,8 +79,19 @@ typedef struct SwitchBoard {
 } Switchboard;
 Switchboard switchboard = { .activePin1 = 0, .activePin2 = 0, .number = 0, .startMillis = 0, .timeToSolveMillis = 4000 };
 
-unsigned long scrollTimer = 0;
-unsigned int scrollStep = 0;
+// Pins for the button state (digital in) and leds out (5v)
+const uint8_t gameArcadeButtonPinsDin[] = { 9, 11, 13 };
+const uint8_t gameArcadeButtonPinsLedOut[] = { 8, 10, 12 };
+const CRGB gameArcadeButtonPinsColors[] = { CRGB::Green, CRGB::Yellow, CRGB::Red };
+const uint8_t gameArcadeButtonNumberOfButtons = 3;
+unsigned long gameArcadeButtonTimer = 0;
+uint8_t gameArcadeButtonState = 0;
+unsigned long gameArcadeButtonShowColorMsec = 2000;
+unsigned long gameArcadeButtonShowColorPauseMsec = 500;
+uint8_t numberOfButtonPresses = 3;
+
+// Maximum presses is 20
+uint8_t buttonsToPress[20];
 
 /* alpha {{{*/
 int8_p alpha[36][13] PROGMEM = {
@@ -128,10 +140,28 @@ int8_p matrixPicBig2[13] PROGMEM = {0,0,224,140,119,158,217,102,159,57,0,0,0};
 int8_p matrixPicBig1[13] PROGMEM = {0,0,96,140,113,254,249,103,128,1,0,0,0};
 int8_p matrixPicSmileyPositive[13] PROGMEM = {252,248,119,249,230,251,239,191,249,229,254,241,3};
 int8_p matrixPicSmileyNegative[13] PROGMEM = {252,248,183,249,245,247,223,127,253,230,254,241,3};
-int8_p matrixPlug[13] PROGMEM = {0,2,12,16,64,0,1,14,56,224,0,1,0};
+int8_p matrixPicPlug[13] PROGMEM = {0,2,12,16,64,0,1,14,56,224,0,1,0};
+int8_p matrixPicBorder[13] PROGMEM = {255,7,24,96,128,1,6,24,96,128,1,254,15};
+int8_p matrixPicMan[13] PROGMEM = {17,136,198,191,104,17,0,0,0,0,0,0,0};
+int8_p matrixPicSkull[13] PROGMEM = {240,96,230,57,247,246,115,239,57,102,240,0,0};
+int8_p matrixPicButtons[13] PROGMEM = {0,0,6,36,144,128,1,0,24,144,64,2,6};
+int8_p matrixPicButton[13] PROGMEM = {6,60,240,128,1,0,0,0,0,0,0,0,0};
 /*}}}*/
 
 void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
+  // Instant switch
+  if(nextStateInMsec == 0 && state.next != nextState) {
+    state.current = nextState;
+
+    #ifdef DEBUG
+      Serial.print("changeStateTo: current = ");  
+      Serial.print(state.current);
+      Serial.println(", at msec = INSTANT");
+    #endif
+
+    return;
+  }
+
   if (state.next != nextState) {
     state.nextStateAtMsec = millis() + nextStateInMsec;
     state.next = nextState;
@@ -186,39 +216,6 @@ void matrixSetByIndex(int alphaIndex, int startColumn, int startRow, CRGB color)
   matrixSetByIndex(alphaIndex, startColumn, startRow, color, 0);
 } /*}}}*/
 
-
-void matrixSetLetters(char letters[], int startColumn, int startRow, CRGB color) { /*{{{*/
-  int letterCount = sizeof(letters)/sizeof(letters[0]);
-  int letter = 0;
-  int column = startColumn;
-
-  for (int i=0; i < letterCount; i++) {
-    letter = int(letters[i]) - 55;
-    matrixSetByIndex(letter, column, startRow, color, 1);
-
-    // Width of letter
-    column+=4;
-  }
-} /*}}} */
-
-void scrollTextAndChangeTo(char letters[], int startRow, CRGB color, int timeToScrollMsec, int targetState) { /*{{{*/
-  if (scrollTimer == 0) {
-    changeStateTo(targetState, timeToScrollMsec);
-    scrollTimer = millis();
-  }
-
-  if(millis() >= scrollTimer) {
-    scrollStep++;
-
-    // remove old letter
-    if(scrollStep > 0) {
-      matrixSetLetters(letters, -scrollStep+1, startRow, CRGB::Black);
-    }
-    matrixSetLetters(letters, -scrollStep, startRow, color);
-    scrollTimer = millis() + 500;
-  }
-} /*}}} */
-
 void showProgressBar(unsigned long progress) { /*{{{*/
   if (progress > 0) {
     // progress is 0 -> 10
@@ -242,7 +239,9 @@ void matrix_setup() /*{{{*/{
 
 void game_setup() {/*{{{*/
   randomSeed(analogRead(4));
-  changeStateTo(1, 1);
+  state.lifes = 3;
+  state.score = 0;
+  state.current = 1;
 } /*}}}*/
 
 void setup() /*{{{*/
@@ -253,18 +252,18 @@ void setup() /*{{{*/
   game_setup();
 }/*}}}*/
 
-// STATE: 1 ... 9
+// STATE: 2 ... 9
 void game_intro_loop() { /*{{{*/
   switch (state.current) {
-    case 1:
-      matrixSetByArray(matrixPicBig3, 0, 0, CRGB::Red);
-      changeStateTo(2, 750);
-      break;
     case 2:
-      matrixSetByArray(matrixPicBig2, 0, 0, CRGB::Orange);
+      matrixSetByArray(matrixPicBig3, 0, 0, CRGB::Red);
       changeStateTo(3, 750);
       break;
     case 3:
+      matrixSetByArray(matrixPicBig2, 0, 0, CRGB::Orange);
+      changeStateTo(4, 750);
+      break;
+    case 4:
       matrixSetByArray(matrixPicBig1, 0, 0, CRGB::Yellow);
       changeStateTo(10, 750);
       break;
@@ -274,15 +273,15 @@ void game_intro_loop() { /*{{{*/
 // STATE: 10
 void game_choose() { /*{{{*/
   activeGame = random(1, numberOfGames + 1); 
+  // TEMP
+  activeGame = 2;
 
-  // Every game has 20 possible states
-  changeStateTo(activeGame * 20, 1);
+  // Every game has 10 possible states
+  changeStateTo((activeGame * 10) + 10, 1);
 
   #ifdef DEBUG
     Serial.print("game_choose: activeGame = ");
-    Serial.print(activeGame);
-    Serial.print(", nextState = ");
-    Serial.println(state.next);
+    Serial.println(activeGame);
   #endif
 } /*}}} */
 
@@ -315,7 +314,7 @@ void game_switchboard_reset() { /*{{{*/
   // Display target number
   matrixSetByIndex((switchboard.number/10), 1, 2, CRGB::Green, 1);
   matrixSetByIndex((switchboard.number%10), 5, 2, CRGB::Green, 1);
-  matrixSetByArray(matrixPlug, 0, 0, CRGB::Yellow, 1);
+  matrixSetByArray(matrixPicPlug, 0, 0, CRGB::Yellow, 1);
 
   // Remember start time
   switchboard.startMillis = millis();
@@ -384,7 +383,7 @@ void game_switchboard_loop() { /*{{{*/
        gameSwitchboardPinActive2 == switchboard.activePin1)) {
       // CORRECT!
       correctFound = 1;
-      changeStateTo(101, 0);
+      changeStateTo(101, 1);
     }
   }
 
@@ -396,22 +395,151 @@ void game_switchboard_loop() { /*{{{*/
       showProgressBar(progressLeds);
     } else {
       // Game lost!
-      changeStateTo(100, 0);
+      changeStateTo(100, 1);
     }
   }
 } /*}}} */
 
-// STATE: 110
-void displayScoreAndReset() { /*{{{*/
-  char letters[] = {'P', 'U', 'N', 'K', 'T', 'E'};
-  //char letters[] = {'P', 'U'};
-  scrollTextAndChangeTo(letters, 5, CRGB::Grey, 5000, 1);
+// STATE: 30
+void game_arcade_button_reset() { /*{{{*/
+  // Set PINS
+  for(uint8_t i = 0; i < gameArcadeButtonNumberOfButtons; i++) {
+    pinMode(gameArcadeButtonPinsDin[i], INPUT_PULLUP);
+    pinMode(gameArcadeButtonPinsLedOut[i], OUTPUT);
+    digitalWrite(gameArcadeButtonPinsLedOut[0], LOW);
+  }
+
+  // How many presses neccessary?
+  numberOfButtonPresses = 3 + (state.score / 10);
+
+  // Choose random buttons forevery slot
+  for(uint8_t i = 0; i < numberOfButtonPresses; i++) {
+    buttonsToPress[i] = random(0, gameArcadeButtonNumberOfButtons);
+    #ifdef DEBUG
+      Serial.print("game_arcade_button_reset: must press button #");
+      Serial.print(i);
+      Serial.print(" = ");
+      Serial.println(buttonsToPress[i]);
+    #endif
+  }
+
+  // Mark the end by adding 255 as end marker
+  buttonsToPress[numberOfButtonPresses] = 255;
+
+  gameArcadeButtonTimer = 0;
+  gameArcadeButtonState = 1;
+
+  // Display task at hand
+  changeStateTo(31, 1);
 } /*}}} */
 
-// STATE: 1 ... 100
+// STATE: 31
+void game_arcade_button_show_task() { /*{{{*/
+  uint8_t cell = 0;
+  CRGB color;
+
+  if (millis() > gameArcadeButtonTimer) {
+
+    // Display buttons on top
+    matrixSetByArray(matrixPicButtons, 0, 0, CRGB::Yellow);
+
+    // Pause or next button display?
+    if (gameArcadeButtonState % 2 == 0) {
+      int8_t prevButton = (gameArcadeButtonState / 2) - 1;
+
+      for(uint8_t i = 0; i < 3; i++) {
+        for(uint8_t j = 0; j < 3; j++) {
+          cell = 12 + j + ( i * 10 ) + ( buttonsToPress[prevButton] * 30 ); 
+          leds[cell] = CRGB::Black;
+        }
+      }
+
+      gameArcadeButtonTimer = millis() + gameArcadeButtonShowColorPauseMsec;
+
+      #ifdef DEBUG
+        Serial.println("game_arcade_button_show_task(): Pausing");
+      #endif
+
+    } else {
+      color = gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]];
+      gameArcadeButtonTimer = millis() + gameArcadeButtonShowColorMsec;
+
+      #ifdef DEBUG
+        Serial.print("game_arcade_button_show_task(): Showing button #");
+        Serial.print(gameArcadeButtonState/2);
+        Serial.print(", button ID ");
+        Serial.print(buttonsToPress[gameArcadeButtonState/2]);
+        Serial.print(", color ");
+        Serial.println(gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]]);
+      #endif
+
+      // Fill the corresponding block of the button in the matrix
+      for(uint8_t i = 0; i < 3; i++) {
+        for(uint8_t j = 0; j < 3; j++) {
+          cell = 12 + j + ( i * 10 ) + ( buttonsToPress[gameArcadeButtonState/2] * 30 ); 
+          leds[cell] = gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]];
+        }
+      }
+    }
+
+    gameArcadeButtonState++;
+
+    // Showed all buttons?
+    if (buttonsToPress[gameArcadeButtonState/2] == 255) {
+      changeStateTo(32, 1);
+    }
+
+    ledsModified = 2;
+  }
+
+} /*}}} */
+
+// STATE: 31 ... 39
+void game_arcade_button_loop() { /*{{{*/
+  switch(state.current) {
+    // Show all buttons one by one
+    case 31:
+      game_arcade_button_show_task();
+      break;
+    // Expect presses
+    case 32:
+      break;
+  }
+
+  //for(uint8_t i = 0; i < 3; i++) {
+    //#ifdef DEBUG
+      //Serial.print("game_arcade_button_loop(): Read button #");
+      //Serial.print(i);
+      //Serial.print(" (D");
+      //Serial.print(gameArcadeButtonPinsDin[i]);
+      //Serial.print(") = ");
+      //Serial.println(digitalRead(gameArcadeButtonPinsDin[i]));
+    //#endif
+
+    //if (digitalRead(gameArcadeButtonPinsDin[i])) {
+      //digitalWrite(gameArcadeButtonPinsLedOut[i], HIGH);
+    //} else {
+      //digitalWrite(gameArcadeButtonPinsLedOut[i], LOW);
+    //}
+  //}
+} /*}}} */
+
+// STATE: 110
+void displayScore() { /*{{{*/
+  matrixSetByArray(matrixPicBorder, 0, 0, CRGB::Grey);
+  matrixSetByIndex((state.score/10), 1, 2, CRGB::Grey);
+  matrixSetByIndex((state.score%10), 5, 2, CRGB::Grey);
+} /*}}} */
+
+// STATE: 1 ... 110
 void game_master_loop() { /*{{{*/
   switch (state.current) {
-    case 1 ... 9:
+    case 1:
+      game_setup();
+      // TEMP
+      changeStateTo(2, 1);
+      break;
+    case 2 ... 9:
       // 3 ... 2 ... 1 ... GO!
       game_intro_loop();
       break;
@@ -423,27 +551,67 @@ void game_master_loop() { /*{{{*/
       // Generate fresh switchboard game
       game_switchboard_reset();
       break;
-    case 21 ... 39:
+    case 21 ... 29:
       // Search for solution for switchboard
       game_switchboard_loop();
       break;
+    case 30:
+      // Arcade Button fresh game
+      game_arcade_button_reset();
+      break;
+    case 31 ... 39:
+      // Arcade Button game loop
+      game_arcade_button_loop();
+      break;
     case 100:
-      // Game lost -> show smiley -> new game
+      // Game lost -> show smiley -> new game or game over
+
+      // Must change state to 0 so that this case is not called again
+      state.current = 0;
+
+      // reduce life by one
+      state.lifes--;
       clearMatrix();
-      matrixSetByArray(matrixPicSmileyNegative, 0,0, CRGB::Red);
-      changeStateTo(110, 2000);
+      matrixSetByArray(matrixPicSmileyNegative, 0,0, CRGB::Crimson);
+
+      #ifdef DEBUG
+        Serial.print("lifes left = ");
+        Serial.println(state.lifes);
+      #endif
+
+      if (state.lifes == 0) {
+        // All lifes lost, game over
+        changeStateTo(111, 1500);
+      } else {
+        // Show life lost and reset
+        changeStateTo(110, 1500);
+      }
+
       break;
     case 101:
       // Game won!
       state.score++;
       clearMatrix();
       matrixSetByArray(matrixPicSmileyPositive, 0,0, CRGB::Green);
-      changeStateTo(110, 2000);
+      changeStateTo(2, 2000);
       break;
     case 110:
-      // Display score and then change to new stage
-      displayScoreAndReset();
-      changeStateTo(1, 4000);
+      // Show lifes and reset
+      matrixSetByArray(matrixPicMan, 0, 0, CRGB::Yellow);
+      matrixSetByIndex(state.lifes, 4, 3, CRGB::Green);
+      changeStateTo(2, 2000);
+      break;
+    case 111:
+      // All lifes lost ... Game over!
+      matrixSetByArray(matrixPicSkull, 0, 0, CRGB::Red);
+      changeStateTo(112, 2000);
+      break;
+    case 112:
+      displayScore();
+      changeStateTo(200, 8000);
+      break;
+    case 200:
+      clearMatrix();
       break;
   }
 } /*}}} */
