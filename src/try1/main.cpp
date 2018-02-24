@@ -82,12 +82,16 @@ Switchboard switchboard = { .activePin1 = 0, .activePin2 = 0, .number = 0, .star
 // Pins for the button state (digital in) and leds out (5v)
 const uint8_t gameArcadeButtonPinsDin[] = { 9, 11, 13 };
 const uint8_t gameArcadeButtonPinsLedOut[] = { 8, 10, 12 };
+
+const uint8_t gameArcadeButtonStartColumnPos[] = { 0, 2, 5 };
+const uint8_t gameArcadeButtonStartRowPos[] = { 5, 1, 5 };
+
 const CRGB gameArcadeButtonPinsColors[] = { CRGB::Green, CRGB::Yellow, CRGB::Red };
 const uint8_t gameArcadeButtonNumberOfButtons = 3;
 unsigned long gameArcadeButtonTimer = 0;
-uint8_t gameArcadeButtonState = 0;
 unsigned long gameArcadeButtonShowColorMsec = 2000;
 unsigned long gameArcadeButtonShowColorPauseMsec = 500;
+uint8_t gameArcadeButtonState = 0;
 uint8_t numberOfButtonPresses = 3;
 
 // Maximum presses is 20
@@ -144,8 +148,7 @@ int8_p matrixPicPlug[13] PROGMEM = {0,2,12,16,64,0,1,14,56,224,0,1,0};
 int8_p matrixPicBorder[13] PROGMEM = {255,7,24,96,128,1,6,24,96,128,1,254,15};
 int8_p matrixPicMan[13] PROGMEM = {17,136,198,191,104,17,0,0,0,0,0,0,0};
 int8_p matrixPicSkull[13] PROGMEM = {240,96,230,57,247,246,115,239,57,102,240,0,0};
-int8_p matrixPicButtons[13] PROGMEM = {0,0,6,36,144,128,1,0,24,144,64,2,6};
-int8_p matrixPicButton[13] PROGMEM = {6,60,240,128,1,0,0,0,0,0,0,0,0};
+int8_p matrixPicButton[13] PROGMEM = {14,124,240,193,7,14,0,0,0,0,0,0,0};
 /*}}}*/
 
 void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
@@ -260,7 +263,7 @@ void game_intro_loop() { /*{{{*/
       changeStateTo(3, 750);
       break;
     case 3:
-      matrixSetByArray(matrixPicBig2, 0, 0, CRGB::Orange);
+      matrixSetByArray(matrixPicBig2, 0, 0, CRGB::Crimson);
       changeStateTo(4, 750);
       break;
     case 4:
@@ -412,7 +415,7 @@ void game_arcade_button_reset() { /*{{{*/
   // How many presses neccessary?
   numberOfButtonPresses = 3 + (state.score / 10);
 
-  // Choose random buttons forevery slot
+  // Choose random buttons for every slot
   for(uint8_t i = 0; i < numberOfButtonPresses; i++) {
     buttonsToPress[i] = random(0, gameArcadeButtonNumberOfButtons);
     #ifdef DEBUG
@@ -433,8 +436,8 @@ void game_arcade_button_reset() { /*{{{*/
   changeStateTo(31, 1);
 } /*}}} */
 
-void game_arcade_button_display_button(uint8_p buttonIndex, CRGB color) { /*{{{*/
-  matrixSetByArray(matrixPicButton, 0, 0, color); 
+void game_arcade_button_display_button(int buttonIndex, CRGB color) { /*{{{*/
+  matrixSetByArray(matrixPicButton, gameArcadeButtonStartColumnPos[buttonIndex], gameArcadeButtonStartRowPos[buttonIndex], color); 
 } /*}}} */
 
 // STATE: 31
@@ -443,12 +446,9 @@ void game_arcade_button_show_task() { /*{{{*/
 
   if (millis() > gameArcadeButtonTimer) {
 
-    // Display buttons on top
-    matrixSetByArray(matrixPicButtons, 0, 0, CRGB::Yellow);
-
     // Pause or next button display?
     if (gameArcadeButtonState % 2 == 0) {
-      game_arcade_button_display_button(gameArcadeButtonState / 2 - 1, CRGB::Black);
+      game_arcade_button_display_button(buttonsToPress[gameArcadeButtonState/2] - 1, CRGB::Black);
       gameArcadeButtonTimer = millis() + gameArcadeButtonShowColorPauseMsec;
 
       #ifdef DEBUG
@@ -469,7 +469,7 @@ void game_arcade_button_show_task() { /*{{{*/
       #endif
 
       // Fill the corresponding block of the button in the matrix
-      game_arcade_button_display_button(gameArcadeButtonState / 2, gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]]);
+      game_arcade_button_display_button(buttonsToPress[gameArcadeButtonState/2], gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]]);
     }
 
     gameArcadeButtonState++;
@@ -479,7 +479,7 @@ void game_arcade_button_show_task() { /*{{{*/
       changeStateTo(32, 1);
     }
 
-    ledsModified = 2;
+    ledsModified = 1;
   }
 
 } /*}}} */
@@ -526,7 +526,6 @@ void game_master_loop() { /*{{{*/
   switch (state.current) {
     case 1:
       game_setup();
-      // TEMP
       changeStateTo(2, 1);
       break;
     case 2 ... 9:
