@@ -433,9 +433,12 @@ void game_arcade_button_reset() { /*{{{*/
   changeStateTo(31, 1);
 } /*}}} */
 
+void game_arcade_button_display_button(uint8_p buttonIndex, CRGB color) { /*{{{*/
+  matrixSetByArray(matrixPicButton, 0, 0, color); 
+} /*}}} */
+
 // STATE: 31
 void game_arcade_button_show_task() { /*{{{*/
-  uint8_t cell = 0;
   CRGB color;
 
   if (millis() > gameArcadeButtonTimer) {
@@ -445,15 +448,7 @@ void game_arcade_button_show_task() { /*{{{*/
 
     // Pause or next button display?
     if (gameArcadeButtonState % 2 == 0) {
-      int8_t prevButton = (gameArcadeButtonState / 2) - 1;
-
-      for(uint8_t i = 0; i < 3; i++) {
-        for(uint8_t j = 0; j < 3; j++) {
-          cell = 12 + j + ( i * 10 ) + ( buttonsToPress[prevButton] * 30 ); 
-          leds[cell] = CRGB::Black;
-        }
-      }
-
+      game_arcade_button_display_button(gameArcadeButtonState / 2 - 1, CRGB::Black);
       gameArcadeButtonTimer = millis() + gameArcadeButtonShowColorPauseMsec;
 
       #ifdef DEBUG
@@ -474,12 +469,7 @@ void game_arcade_button_show_task() { /*{{{*/
       #endif
 
       // Fill the corresponding block of the button in the matrix
-      for(uint8_t i = 0; i < 3; i++) {
-        for(uint8_t j = 0; j < 3; j++) {
-          cell = 12 + j + ( i * 10 ) + ( buttonsToPress[gameArcadeButtonState/2] * 30 ); 
-          leds[cell] = gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]];
-        }
-      }
+      game_arcade_button_display_button(gameArcadeButtonState / 2, gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]]);
     }
 
     gameArcadeButtonState++;
