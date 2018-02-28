@@ -8,13 +8,13 @@ extern HardwareSerial Serial;
 //                                  +-----+
 //                     +------------| USB |-------------+
 //                     |            +-----+             |
-//                     | [ ]D13/SCK/noDin   MISO/D12[ ] | -> arcadeBtnsLeds[2]
-//                     | [ ]3.3V            MOSI/D11[ ]~| <- arcadeBtnsDin[1]
-//                     | [ ]V.ref     ___     SS/D10[ ]~| -> arcadeBtnsLeds[1]
-// PRESSURE_LED_PIN <- | [ ]A0       / N \        D9[ ]~| <- arcadeBtnsDin[0]
-// PRESSURE_BTN_PIN -> | [ ]A1      /  A  \       D8[ ] | -> arcadeBtnsLeds[0]
+// arcadeBtnsLeds[2]<- | [ ]D13/SCK/noDin   MISO/D12[ ] | -> arcadeBtnsLeds[1]
+//                     | [ ]3.3V            MOSI/D11[ ]~| -> arcadeBtnsLeds[0]
+//                     | [ ]V.ref     ___     SS/D10[ ]~| <- arcadeBtnsDin[2]
+// PRESSURE_LED_PIN <- | [ ]A0       / N \        D9[ ]~| <- arcadeBtnsDin[1]
+// PRESSURE_BTN_PIN -> | [ ]A1      /  A  \       D8[ ] | <- arcadeBtnsDin[0]
 // MATRIX_LED_PIN   <- | [ ]A2      \  N  /       D7[ ] | <- switchboardPins[5] => 64
-// arcadeBtnsDin[2] -> | [ ]A3       \_0_/        D6[ ]~| <- switchboardPins[4] => 32
+//                     | [ ]A3       \_0_/        D6[ ]~| <- switchboardPins[4] => 32
 //     potiPins[0]  -> | [ ]A4/SDA                D5[ ]~| <- switchboardPins[3] => 16
 //     potiPins[1]  -> | [ ]A5/SCL                D4[ ] | <- switchboardPins[2] => 8
 //     potiPins[2]  -> | [ ]A6 (noDIn)       INT1/D3[ ]~| <- switchboardPins[1] => 4
@@ -28,7 +28,7 @@ extern HardwareSerial Serial;
 //                     | NANO-V3                        |
 //                     +--------------------------------+
 
-// Global game state
+/* GLOBAL GAME STATE {{{*/
 typedef struct State {
   unsigned int current;
   unsigned int next;
@@ -39,6 +39,15 @@ typedef struct State {
 
 State state = { .current = 0, .next = 0, .nextStateAtMsec = 0, .score = 0, .lifes = 3};
 
+// Currently active game
+int activeGame = 0;
+
+// Total number of playable games
+long numberOfGames = 2;
+
+/*}}}*/
+
+/* MATRIX SETTINGS {{{*/
 const int matrixDinPin = A2;
 const int numLeds = 100;
 const int matrixLedBrightness = 5;
@@ -50,13 +59,9 @@ byte ledsModified = 0;
 
 // LED array
 CRGB leds[numLeds];
+/*}}}*/
 
-// Currently active game
-int activeGame = 0;
-
-// Total number of playable games
-long numberOfGames = 2;
-
+/* SWITCHBOARD SETTINGS {{{*/
 // Number of PINS used for switchboard game
 const int gameSwitchboardPinNum = 6;
 
@@ -79,27 +84,44 @@ typedef struct SwitchBoard {
 } Switchboard;
 Switchboard switchboard = { .activePin1 = 0, .activePin2 = 0, .number = 0, .startMillis = 0, .timeToSolveMillis = 4000 };
 
-// Pins for the button state (digital in) and leds out (5v)
-const uint8_t gameArcadeButtonPinsDin[] = { 9, 11, A3 };
-const uint8_t gameArcadeButtonPinsLedOut[] = { 8, 10, 12 };
+/*}}}*/
 
+/* ARCADE BUTTON SETTINGS {{{*/
+// How many buttons?
+const uint8_t gameArcadeButtonNumberOfButtons = 3;
+
+// Pins for the button state (digital in) and leds out (5v)
+const uint8_t gameArcadeButtonPinsDin[] = { 8, 9, 10 };
+const uint8_t gameArcadeButtonPinsLedOut[] = { 11, 12, 13 };
+
+// Where to start displaying the button on the matrix
 const uint8_t gameArcadeButtonStartColumnPos[] = { 0, 2, 5 };
 const uint8_t gameArcadeButtonStartRowPos[] = { 5, 1, 5 };
 
+// Colors of Buttons LEFT to RIGHT
 const CRGB gameArcadeButtonPinsColors[] = { CRGB::Red, CRGB::Yellow, CRGB::Green };
-const uint8_t gameArcadeButtonNumberOfButtons = 3;
+
+// Timer settings
 unsigned long gameArcadeButtonTimer = 0;
+
+// How long to display a button and how long to pause in msec
 unsigned long gameArcadeButtonShowColorMsec = 2000;
 unsigned long gameArcadeButtonShowColorPauseMsec = 500;
-uint8_t gameArcadeButtonState = 0;
-uint8_t numberOfButtonPresses = 3;
+unsigned long gameArcadeButtonTimeToSolveTask = 4000;
 
+uint8_t gameArcadeButtonState = 0;
+
+// Number of presses needed to solve this stage
+uint8_t gameArcadeNumberOfButtonPresses = 3;
+
+// Temporarystate vars
 uint8_t gameArcadePressedButton = 0;
 uint8_t gameArcadePrevPressedButton = 0;
 uint8_t gameArcadePressedSoFarIndex = 0;
 
 // Maximum presses is 20
 uint8_t buttonsToPress[20];
+/*}}}*/
 
 /* alpha {{{*/
 int8_p alpha[36][13] PROGMEM = {
@@ -143,7 +165,6 @@ int8_p alpha[36][13] PROGMEM = {
 /*}}}*/
 
 /* pictures {{{*/
-
 int8_p matrixPicBig3[13] PROGMEM = {0,0,96,155,109,182,217,230,159,127,0,0,0};
 int8_p matrixPicBig2[13] PROGMEM = {0,0,224,140,119,158,217,102,159,57,0,0,0};
 int8_p matrixPicBig1[13] PROGMEM = {0,0,96,140,113,254,249,103,128,1,0,0,0};
@@ -154,7 +175,7 @@ int8_p matrixPicBorder[13] PROGMEM = {255,7,24,96,128,1,6,24,96,128,1,254,15};
 int8_p matrixPicMan[13] PROGMEM = {17,136,198,191,104,17,0,0,0,0,0,0,0};
 int8_p matrixPicSkull[13] PROGMEM = {240,96,230,57,247,246,115,239,57,102,240,0,0};
 int8_p matrixPicButton[13] PROGMEM = {14,124,240,193,7,14,0,0,0,0,0,0,0};
-int8_p matrixPicQuestion[13] PROGMEM = {0,0,6,56,192,59,239,13,62,112,0,0,0};
+int8_p matrixPicQuestion[13] PROGMEM = {0,0,6,56,192,22,219,13,62,112,0,0,0};
 /*}}}*/
 
 void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
@@ -256,14 +277,6 @@ void game_setup() {/*{{{*/
   state.score = 0;
   state.current = 1;
 } /*}}}*/
-
-void setup() /*{{{*/
-{
-  Serial.begin(9600);
-  
-  matrix_setup();
-  game_setup();
-}/*}}}*/
 
 // STATE: 2 ... 9
 void game_intro_loop() { /*{{{*/
@@ -427,10 +440,10 @@ void game_arcade_button_reset() { /*{{{*/
   gameArcadePrevPressedButton = 255;
 
   // How many presses neccessary?
-  numberOfButtonPresses = 3 + int((state.score / 10));
+  gameArcadeNumberOfButtonPresses = 3 + int((state.score / 10));
 
   // Choose random buttons for every slot
-  for(uint8_t i = 0; i < numberOfButtonPresses; i++) {
+  for(uint8_t i = 0; i < gameArcadeNumberOfButtonPresses; i++) {
     buttonsToPress[i] = random(0, gameArcadeButtonNumberOfButtons);
     #ifdef DEBUG
       Serial.print("game_arcade_button_reset: must press button #");
@@ -441,9 +454,9 @@ void game_arcade_button_reset() { /*{{{*/
   }
 
   // Mark the end by adding 255 as end marker
-  buttonsToPress[numberOfButtonPresses] = 255;
+  buttonsToPress[gameArcadeNumberOfButtonPresses] = 255;
 
-  gameArcadeButtonTimer = 0;
+  gameArcadeButtonTimer = 1;
   gameArcadeButtonState = 1;
 
   // Display task at hand
@@ -454,7 +467,7 @@ void game_arcade_button_reset() { /*{{{*/
 void game_arcade_button_show_task() { /*{{{*/
   CRGB color;
 
-  if (millis() > gameArcadeButtonTimer) {
+  if (gameArcadeButtonTimer > 0 && millis() > gameArcadeButtonTimer) {
 
     // Pause or next button display?
     if (gameArcadeButtonState % 2 == 0) {
@@ -486,6 +499,7 @@ void game_arcade_button_show_task() { /*{{{*/
 
     // Showed all buttons?
     if (buttonsToPress[gameArcadeButtonState/2] == 255) {
+      gameArcadeButtonTimer = 0;
       changeStateTo(32, gameArcadeButtonShowColorMsec);
     }
 
@@ -496,9 +510,13 @@ void game_arcade_button_show_task() { /*{{{*/
 
 // STATE: 32
 void game_arcade_button_detect_pressed() { /*{{{*/
-  matrixSetByArray(matrixPicQuestion, 0, 0, CRGB::Yellow);
-
   uint8_t changeStateNext = 0;
+
+  // On first call remember start msecs and show ? mark
+  if (gameArcadeButtonTimer == 0) {
+    matrixSetByArray(matrixPicQuestion, 0, 0, CRGB::Yellow);
+    gameArcadeButtonTimer = millis();
+  }
 
   for(uint8_t i = 0; i < gameArcadeButtonNumberOfButtons; i++) {
 
@@ -523,7 +541,7 @@ void game_arcade_button_detect_pressed() { /*{{{*/
         Serial.print(" as press ");
         Serial.print(gameArcadePressedSoFarIndex+1);
         Serial.print(" of ");
-        Serial.print(numberOfButtonPresses);
+        Serial.print(gameArcadeNumberOfButtonPresses);
         Serial.print("; current read button #");
         Serial.print(i);
         Serial.print(" (D");
@@ -535,7 +553,7 @@ void game_arcade_button_detect_pressed() { /*{{{*/
       if (gameArcadeButtonPinsDin[i] != gameArcadeButtonPinsDin[buttonsToPress[gameArcadePressedSoFarIndex]]) {
         // Did NOT press the correct button
         changeStateNext = 33;
-      } else if (gameArcadePressedSoFarIndex == numberOfButtonPresses - 1) {
+      } else if (gameArcadePressedSoFarIndex == gameArcadeNumberOfButtonPresses - 1) {
         // All buttons pressed correctly?
         changeStateNext = 34;
       }
@@ -546,6 +564,15 @@ void game_arcade_button_detect_pressed() { /*{{{*/
     } else {
       // Power the LED down
       digitalWrite(gameArcadeButtonPinsLedOut[i], LOW);
+    }
+
+    // Progress bar
+    unsigned long progressLedsCount = map(gameArcadeButtonTimeToSolveTask + gameArcadeButtonTimer - millis(), 0, gameArcadeButtonTimeToSolveTask, 10, 0);
+    showProgressBar(progressLedsCount);
+
+    // Time over?
+    if (progressLedsCount >= 10) {
+      changeStateNext = 33;
     }
 
     // Change State?
@@ -676,6 +703,16 @@ void game_master_loop() { /*{{{*/
   }
 } /*}}} */
 
+// Main arduino setup
+void setup() /*{{{*/
+{
+  Serial.begin(9600);
+  
+  matrix_setup();
+  game_setup();
+}/*}}}*/
+
+// Main arduino loop
 void loop() /*{{{*/
 {
   // advance state
