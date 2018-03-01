@@ -43,7 +43,7 @@ State state = { .current = 0, .next = 0, .nextStateAtMsec = 0, .score = 0, .life
 int activeGame = 0;
 
 // Total number of playable games
-long numberOfGames = 2;
+long numberOfGames = 3;
 
 /*}}}*/
 
@@ -123,6 +123,19 @@ uint8_t gameArcadePressedSoFarIndex = 0;
 uint8_t buttonsToPress[20];
 /*}}}*/
 
+/* POTI SETTINGS {{{*/
+#define GAME_POTI_NUM_POTIS 4 
+const uint8_t gamePotiCount = GAME_POTI_NUM_POTIS;
+const uint8_t gamePotiPins[] = { A4, A5, A6, A7 };
+uint8_t gamePotiChallenge[] = { 0, 0, 0, 0 };
+uint8_t gamePotiHintStartColumn[] = { 0, 8, 0, 8 };
+uint8_t gamePotiHintStartRow[] = { 0, 5, 0, 5 };
+unsigned long gamePotiShowChallengeMsec = 4000;
+uint8_t gamePotiReadings[GAME_POTI_NUM_POTIS][10];
+uint8_t gamePotiReadingsIndex[GAME_POTI_NUM_POTIS] = {0, 0, 0, 0};
+uint8_t gamePotiCurrentValue[GAME_POTI_NUM_POTIS] = {0, 0, 0, 0};
+/*}}}*/
+
 /* alpha {{{*/
 int8_p alpha[36][13] PROGMEM = {
   {0,60,16,129,7,0,0,0,0,0,0,0,0},  // 0
@@ -176,6 +189,7 @@ int8_p matrixPicMan[13] PROGMEM = {17,136,198,191,104,17,0,0,0,0,0,0,0};
 int8_p matrixPicSkull[13] PROGMEM = {240,96,230,57,247,246,115,239,57,102,240,0,0};
 int8_p matrixPicButton[13] PROGMEM = {14,124,240,193,7,14,0,0,0,0,0,0,0};
 int8_p matrixPicQuestion[13] PROGMEM = {0,0,6,56,192,22,219,13,62,112,0,0,0};
+int8_p matrixPicPoti[13] PROGMEM = {252,24,54,112,128,49,198,24,227,204,182,241,3};
 /*}}}*/
 
 void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
@@ -300,7 +314,7 @@ void game_intro_loop() { /*{{{*/
 void game_choose() { /*{{{*/
   activeGame = random(1, numberOfGames + 1); 
   // TEMP
-  activeGame = 2;
+  activeGame = 3;
 
   // Every game has 10 possible states
   changeStateTo((activeGame * 10) + 10, 1);
@@ -439,7 +453,7 @@ void game_arcade_button_reset() { /*{{{*/
   gameArcadePressedSoFarIndex = 0;
   gameArcadePrevPressedButton = 255;
 
-  // How many presses neccessary?
+  // How many presses necessary?
   gameArcadeNumberOfButtonPresses = 3 + int((state.score / 10));
 
   // Choose random buttons for every slot
@@ -608,6 +622,78 @@ void game_arcade_button_loop() { /*{{{*/
   }
 } /*}}} */
 
+// STATE: 40
+void game_poti_reset() { /*{{{*/
+
+  if (state.current == state.next) {
+    // Reset pins and generate new task
+    for(uint8_t i; i < gamePotiCount; i++) {
+      pinMode(gamePotiPins[i], INPUT);
+      gamePotiChallenge[i] = int(random(0, 9));
+      gamePotiCurrentValue[i] = map(analogRead(gamePotiPins[i]), 0, 1023, 0, 10);
+
+      // Reset poti readings
+      for (uint8_t p = 0; p < 10; p++) {
+        gamePotiReadings[i][p] = gamePotiCurrentValue[i];
+      }
+    }
+
+    // How long to show the hint?
+    // TODO dynamic!
+    gamePotiShowChallengeMsec = 3000;
+  }
+
+  changeStateTo(41, 1);
+} /*}}} */
+
+// STATE: 42
+void game_poti_show_challenge() { /*{{{*/
+  if (state.current == state.next) {
+    for(uint8_t i = 0; i < gamePotiCount; i++) {
+      matrixSetByIndex(gamePotiChallenge[i], gamePotiHintStartColumn[i], gamePotiHintStartRow[i], CHSV(random8(),255,255));
+    }
+  }
+  changeStateTo(43, gamePotiShowChallengeMsec);
+} /*}}} */
+
+// STATE: 43
+void game_poti_detect_potis() { /*{{{*/
+  // Read all potis remembering the last 10 values
+  for(uint8_t potiIndex = 0; potiIndex < gamePotiCount; potiIndex++) {
+    gamePotiReadings[potiIndex][gamePotiReadingsIndex[potiIndex]] = map(analogRead(gamePotiPins[potiIndex]), 0, 1023, 0, 10);
+    gamePotiReadingsIndex[potiIndex]++;
+
+    if(gamePotiReadingsIndex[potiIndex] > 9) {
+      gamePotiReadingsIndex[potiIndex] = 0;
+
+      // Smoothing all values into a single one
+      for(uint8_t i = 0; i < 10; i++) {
+        gamePotiCurrentValue[potiIndex] += gamePotiReadings[potiIndex][i]; 
+      }
+      gamePotiCurrentValue[potiIndex] += gamePotiCurrentValue[potiIndex] / 10;
+    }
+  }
+} /*}}} */
+
+// STATE: 43 (2)
+void game_poti_check_solution() { /*{{{*/
+  uint8_t correctPotis = 0;
+
+  // Check all current poti values for correctness
+  for(uint8_t potiIndex = 0; potiIndex < gamePotiCount; potiIndex++) {
+    if (gamePotiCurrentValue[potiIndex] == gamePotiChallenge[potiIndex]) {
+      correctPotis++;
+    }
+  }
+
+  // All correct?
+  if (correctPotis == gamePotiCount) {
+    changeStateTo(101, 1);
+  } else {
+    // TODO progressBar + timeout
+  }
+} /*}}} */
+
 // STATE: 110
 void displayScore() { /*{{{*/
   matrixSetByArray(matrixPicBorder, 0, 0, CRGB::Grey);
@@ -645,6 +731,24 @@ void game_master_loop() { /*{{{*/
     case 31 ... 39:
       // Arcade Button game loop
       game_arcade_button_loop();
+      break;
+    case 40:
+      // Poti fresh game
+      game_poti_reset();
+      break;
+    case 41:
+      // Show poti picture
+      if (state.current == state.next) {
+        matrixSetByArray(matrixPicPoti, 0, 0, CRGB::Yellow);
+      }
+      changeStateTo(42, 2000);
+      break;
+    case 42:
+      game_poti_show_challenge();
+      break;
+    case 43:
+      game_poti_detect_potis();
+      game_poti_check_solution();
       break;
     case 100:
       // Game lost -> show smiley -> new game or game over
