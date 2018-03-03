@@ -27,6 +27,9 @@ extern HardwareSerial Serial;
 //                     |          MISO SCK RST          |
 //                     | NANO-V3                        |
 //                     +--------------------------------+
+//
+// Potis read 1 full counterclockwise and GAME_POTI_MAP_TO_MAX full clockwise
+//
 
 /* GLOBAL GAME STATE {{{*/
 typedef struct State {
@@ -44,6 +47,8 @@ int activeGame = 0;
 
 // Total number of playable games
 long numberOfGames = 3;
+
+unsigned long previousProgress = 0;
 
 /*}}}*/
 
@@ -125,12 +130,14 @@ uint8_t buttonsToPress[20];
 
 /* POTI SETTINGS {{{*/
 #define GAME_POTI_NUM_POTIS 4 
+#define GAME_POTI_MAP_TO_MAX 6
 const uint8_t gamePotiCount = GAME_POTI_NUM_POTIS;
 const uint8_t gamePotiPins[] = { A4, A5, A6, A7 };
 uint8_t gamePotiChallenge[] = { 0, 0, 0, 0 };
-uint8_t gamePotiHintStartColumn[] = { 0, 8, 0, 8 };
-uint8_t gamePotiHintStartRow[] = { 0, 5, 0, 5 };
-unsigned long gamePotiShowChallengeMsec = 4000;
+uint8_t gamePotiHintStartColumn[] = { 0, 5, 0, 5 };
+uint8_t gamePotiHintStartRow[] = { 5, 5, 0, 0 };
+unsigned long gamePotiTimeToSolveMsec = 5000;
+unsigned long gamePotiChallengeStartMsec;
 uint8_t gamePotiReadings[GAME_POTI_NUM_POTIS][10];
 uint8_t gamePotiReadingsIndex[GAME_POTI_NUM_POTIS] = {0, 0, 0, 0};
 uint8_t gamePotiCurrentValue[GAME_POTI_NUM_POTIS] = {0, 0, 0, 0};
@@ -189,7 +196,10 @@ int8_p matrixPicMan[13] PROGMEM = {17,136,198,191,104,17,0,0,0,0,0,0,0};
 int8_p matrixPicSkull[13] PROGMEM = {240,96,230,57,247,246,115,239,57,102,240,0,0};
 int8_p matrixPicButton[13] PROGMEM = {14,124,240,193,7,14,0,0,0,0,0,0,0};
 int8_p matrixPicQuestion[13] PROGMEM = {0,0,6,56,192,22,219,13,62,112,0,0,0};
-int8_p matrixPicPoti[13] PROGMEM = {252,24,54,112,128,49,198,24,227,204,182,241,3};
+int8_p matrixPicPoti1[13] PROGMEM = {252,24,54,112,128,49,198,24,227,204,182,241,3};
+int8_p matrixPicPoti2[13] PROGMEM = {252,216,54,115,140,49,198,24,224,192,134,241,3};
+int8_p matrixPicPoti3[13] PROGMEM = {252,24,54,124,184,113,198,24,224,192,134,241,3};
+int8_p matrixPicPoti4[13] PROGMEM = {252,24,54,112,128,49,198,25,238,240,134,241,3};
 /*}}}*/
 
 void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
@@ -260,12 +270,17 @@ void matrixSetByIndex(int alphaIndex, int startColumn, int startRow, CRGB color)
   matrixSetByIndex(alphaIndex, startColumn, startRow, color, 0);
 } /*}}}*/
 
-void showProgressBar(unsigned long progress) { /*{{{*/
-  if (progress > 0) {
+void showProgressBar(unsigned long progress, uint8_t horizontal) { /*{{{*/
+  if (progress > 0 && previousProgress != progress) {
+    previousProgress = progress;
+
     // progress is 0 -> 10
     for (uint8_t pLedI = 1; pLedI <= progress; pLedI++) {
-      leds[(pLedI - 1) * 10] = CRGB::DodgerBlue;
-      leds[(pLedI - 1) * 10].fadeLightBy(200);
+      if (horizontal == 0) {
+        leds[(pLedI - 1) * 10] = CRGB::Red;
+      } else {
+        leds[90 + pLedI - 1] = CRGB::Red;
+      }
     }
   }
   ledsModified = 2;
@@ -296,16 +311,22 @@ void game_setup() {/*{{{*/
 void game_intro_loop() { /*{{{*/
   switch (state.current) {
     case 2:
-      matrixSetByArray(matrixPicBig3, 0, 0, CRGB::Red);
-      changeStateTo(3, 750);
+      if (state.next == 0) {
+        matrixSetByArray(matrixPicBig3, 0, 0, CRGB::Red);
+        changeStateTo(3, 750);
+      }
       break;
     case 3:
-      matrixSetByArray(matrixPicBig2, 0, 0, CRGB::Crimson);
-      changeStateTo(4, 750);
+      if (state.next == 0) {
+        matrixSetByArray(matrixPicBig2, 0, 0, CRGB::Crimson);
+        changeStateTo(4, 750);
+      }
       break;
     case 4:
-      matrixSetByArray(matrixPicBig1, 0, 0, CRGB::Yellow);
-      changeStateTo(10, 750);
+      if (state.next == 0) {
+        matrixSetByArray(matrixPicBig1, 0, 0, CRGB::Green);
+        changeStateTo(10, 750);
+      }
       break;
   }
 } /*}}}*/
@@ -432,7 +453,7 @@ void game_switchboard_loop() { /*{{{*/
     if(millis() - switchboard.startMillis <= switchboard.timeToSolveMillis) {
       unsigned long progress = switchboard.timeToSolveMillis + switchboard.startMillis - millis();
       unsigned long progressLeds = map(progress, 0, switchboard.timeToSolveMillis, 10, 0);
-      showProgressBar(progressLeds);
+      showProgressBar(progressLeds, 0);
     } else {
       // Game lost!
       changeStateTo(100, 1);
@@ -582,7 +603,7 @@ void game_arcade_button_detect_pressed() { /*{{{*/
 
     // Progress bar
     unsigned long progressLedsCount = map(gameArcadeButtonTimeToSolveTask + gameArcadeButtonTimer - millis(), 0, gameArcadeButtonTimeToSolveTask, 10, 0);
-    showProgressBar(progressLedsCount);
+    showProgressBar(progressLedsCount, 0);
 
     // Time over?
     if (progressLedsCount >= 10) {
@@ -625,22 +646,29 @@ void game_arcade_button_loop() { /*{{{*/
 // STATE: 40
 void game_poti_reset() { /*{{{*/
 
-  if (state.current == state.next) {
+  if (state.next == 0) {
     // Reset pins and generate new task
     for(uint8_t i; i < gamePotiCount; i++) {
       pinMode(gamePotiPins[i], INPUT);
-      gamePotiChallenge[i] = int(random(0, 9));
-      gamePotiCurrentValue[i] = map(analogRead(gamePotiPins[i]), 0, 1023, 0, 10);
+      gamePotiChallenge[i] = int(random(1, GAME_POTI_MAP_TO_MAX + 1));
+      gamePotiCurrentValue[i] = map(analogRead(gamePotiPins[i]), 0, 1023, GAME_POTI_MAP_TO_MAX, 0);
 
       // Reset poti readings
       for (uint8_t p = 0; p < 10; p++) {
         gamePotiReadings[i][p] = gamePotiCurrentValue[i];
       }
-    }
 
-    // How long to show the hint?
-    // TODO dynamic!
-    gamePotiShowChallengeMsec = 3000;
+      #ifdef DEBUG
+        Serial.print("game_poti_reset: Poti #");
+        Serial.print(i);
+        Serial.print(" = ");
+        Serial.println(gamePotiChallenge[i]);
+      #endif
+
+      // How much time does the player get to solve it, msec
+      // TODO dynamic!
+      gamePotiTimeToSolveMsec = 10000;
+    }
   }
 
   changeStateTo(41, 1);
@@ -648,19 +676,39 @@ void game_poti_reset() { /*{{{*/
 
 // STATE: 42
 void game_poti_show_challenge() { /*{{{*/
-  if (state.current == state.next) {
+  if (state.next == 0) {
     for(uint8_t i = 0; i < gamePotiCount; i++) {
+      #ifdef DEBUG
+       Serial.print("Showing poti #");
+       Serial.print(i);
+       Serial.print(" (");
+       Serial.print(gamePotiChallenge[i]);
+       Serial.print(")");
+       Serial.print(" at column ");
+       Serial.print(gamePotiHintStartColumn[i]);
+       Serial.print(", row ");
+       Serial.println(gamePotiHintStartRow[i]);
+      #endif
+
       matrixSetByIndex(gamePotiChallenge[i], gamePotiHintStartColumn[i], gamePotiHintStartRow[i], CHSV(random8(),255,255));
+      ledsModified = 2;
     }
+
+    gamePotiChallengeStartMsec = millis();
+    changeStateTo(43, 1);
   }
-  changeStateTo(43, gamePotiShowChallengeMsec);
 } /*}}} */
 
 // STATE: 43
 void game_poti_detect_potis() { /*{{{*/
+  #ifdef DEBUG
+    Serial.print("game_poti_detect_potis: Read potis = ");
+  #endif
+
   // Read all potis remembering the last 10 values
   for(uint8_t potiIndex = 0; potiIndex < gamePotiCount; potiIndex++) {
-    gamePotiReadings[potiIndex][gamePotiReadingsIndex[potiIndex]] = map(analogRead(gamePotiPins[potiIndex]), 0, 1023, 0, 10);
+    gamePotiReadings[potiIndex][gamePotiReadingsIndex[potiIndex]] = map(analogRead(gamePotiPins[potiIndex]), 0, 1023, GAME_POTI_MAP_TO_MAX, 0);
+
     gamePotiReadingsIndex[potiIndex]++;
 
     if(gamePotiReadingsIndex[potiIndex] > 9) {
@@ -670,9 +718,18 @@ void game_poti_detect_potis() { /*{{{*/
       for(uint8_t i = 0; i < 10; i++) {
         gamePotiCurrentValue[potiIndex] += gamePotiReadings[potiIndex][i]; 
       }
-      gamePotiCurrentValue[potiIndex] += gamePotiCurrentValue[potiIndex] / 10;
+      gamePotiCurrentValue[potiIndex] = gamePotiCurrentValue[potiIndex] / 10;
     }
+
+    #ifdef DEBUG
+      Serial.print(gamePotiCurrentValue[potiIndex]);
+      Serial.print(", ");
+    #endif
   }
+
+  #ifdef DEBUG
+    Serial.println("");
+  #endif
 } /*}}} */
 
 // STATE: 43 (2)
@@ -690,7 +747,14 @@ void game_poti_check_solution() { /*{{{*/
   if (correctPotis == gamePotiCount) {
     changeStateTo(101, 1);
   } else {
-    // TODO progressBar + timeout
+    // Progress bar
+    unsigned long progressLedsCount = map(gamePotiTimeToSolveMsec + gamePotiChallengeStartMsec - millis(), 0, gamePotiTimeToSolveMsec, 10, 0);
+    showProgressBar(progressLedsCount, 1);
+
+    if (progressLedsCount >= 10) {
+      // Timout! Loose game
+      changeStateTo(100, 1);
+    }
   }
 } /*}}} */
 
@@ -738,8 +802,22 @@ void game_master_loop() { /*{{{*/
       break;
     case 41:
       // Show poti picture
-      if (state.current == state.next) {
-        matrixSetByArray(matrixPicPoti, 0, 0, CRGB::Yellow);
+      if (state.next == 0) {
+        // there are 4 pictures so ...
+        switch(random(1,5)) {
+          case 1:
+            matrixSetByArray(matrixPicPoti1, 0, 0, CRGB::Yellow);
+            break;
+          case 2:
+            matrixSetByArray(matrixPicPoti2, 0, 0, CRGB::Yellow);
+            break;
+          case 3:
+            matrixSetByArray(matrixPicPoti3, 0, 0, CRGB::Yellow);
+            break;
+          case 4:
+            matrixSetByArray(matrixPicPoti4, 0, 0, CRGB::Yellow);
+            break;
+        }
       }
       changeStateTo(42, 2000);
       break;
@@ -789,7 +867,7 @@ void game_master_loop() { /*{{{*/
     case 110:
       // Show lifes and reset
       matrixSetByArray(matrixPicMan, 0, 0, CRGB::Yellow);
-      matrixSetByIndex(state.lifes, 4, 3, CRGB::Green);
+      matrixSetByIndex(state.lifes, 5, 3, CRGB::Green);
       changeStateTo(2, 2000);
       break;
     case 111:
