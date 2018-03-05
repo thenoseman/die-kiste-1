@@ -2,6 +2,7 @@
 #include <HardwareSerial.h>
 #include <FastLED.h>
 #include <PGMWrap.h>
+#include <TimerOne.h>
 
 extern HardwareSerial Serial;
 
@@ -52,9 +53,20 @@ unsigned long previousProgress = 0;
 
 /*}}}*/
 
+/*{{{ PRESSURE RELEASE SETTINGS */
+const uint8_t pressureReleaseNumLeds = 9;
+int8_t pressureReleaseCurrentLevel = 0;
+int8_t pressureReleaseCurrentDirection = 1;
+unsigned long pressureReleaseTimerMsec;
+unsigned long pressureReleaseNextStepMsec = 4000;
+/*}}}*/
+
 /* MATRIX SETTINGS {{{*/
 const int matrixDinPin = A2;
-const int numLeds = 100;
+
+// 100 Leds for display (10x10) and 9 leds for pressure_release_game
+const int matrixNumLeds = 100;
+const int numLeds = matrixNumLeds + pressureReleaseNumLeds;
 const int matrixLedBrightness = 5;
 
 // 0 = no LED update
@@ -144,7 +156,7 @@ uint8_t gamePotiCurrentValue[GAME_POTI_NUM_POTIS] = {0, 0, 0, 0};
 /*}}}*/
 
 /* alpha {{{*/
-int8_p alpha[36][13] PROGMEM = {
+int8_p alpha[10][13] PROGMEM = {
   {0,60,16,129,7,0,0,0,0,0,0,0,0},  // 0
   {0,32,240,1,0,0,0,0,0,0,0,0,0},   // 1
   {0,76,80,65,2,0,0,0,0,0,0,0,0},   // 2
@@ -154,33 +166,7 @@ int8_p alpha[36][13] PROGMEM = {
   {0,60,80,193,5,0,0,0,0,0,0,0,0},  // 6
   {0,76,64,1,6,0,0,0,0,0,0,0,0},    // 7
   {0,124,80,193,7,0,0,0,0,0,0,0,0}, // 8
-  {0,116,80,129,7,0,0,0,0,0,0,0,0}, // 9
-  {0,60,64,193,3,0,0,0,0,0,0,0,0},  // A
-  {0,124,80,129,2,0,0,0,0,0,0,0,0}, // B
-  {0,56,16,65,4,0,0,0,0,0,0,0,0},   // C
-  {0,124,16,129,3,0,0,0,0,0,0,0,0}, // D
-  {0,124,80,65,5,0,0,0,0,0,0,0,0},  // E
-  {0,124,64,1,5,0,0,0,0,0,0,0,0},   // F
-  {0,56,80,193,5,0,0,0,0,0,0,0,0},  // G
-  {0,124,64,192,7,0,0,0,0,0,0,0,0}, // H
-  {0,68,240,65,4,0,0,0,0,0,0,0,0},  // I
-  {0,8,16,128,7,0,0,0,0,0,0,0,0},   // J
-  {0,124,64,192,6,0,0,0,0,0,0,0,0}, // K
-  {0,124,16,64,0,0,0,0,0,0,0,0,0},  // L
-  {0,124,192,192,7,0,0,0,0,0,0,0,0},// M
-  {0,124,224,192,7,0,0,0,0,0,0,0,0},// N
-  {0,56,16,129,3,0,0,0,0,0,0,0,0},  // O
-  {0,124,64,1,2,0,0,0,0,0,0,0,0},   // P
-  {0,56,48,193,3,0,0,0,0,0,0,0,0},  // Q
-  {0,124,96,65,3,0,0,0,0,0,0,0,0},  // R
-  {0,36,80,129,4,0,0,0,0,0,0,0,0},  // S
-  {0,64,240,1,4,0,0,0,0,0,0,0,0},   // T
-  {0,120,16,192,7,0,0,0,0,0,0,0,0}, // U
-  {0,112,48,0,7,0,0,0,0,0,0,0,0},   // V
-  {0,124,96,192,7,0,0,0,0,0,0,0,0}, // W
-  {0,108,64,192,6,0,0,0,0,0,0,0,0}, // X
-  {0,96,112,0,6,0,0,0,0,0,0,0,0},   // Y
-  {0,76,80,65,6,0,0,0,0,0,0,0,0}    // Z
+  {0,116,80,129,7,0,0,0,0,0,0,0,0} // 9
 };
 /*}}}*/
 
@@ -287,7 +273,7 @@ void showProgressBar(unsigned long progress, uint8_t horizontal) { /*{{{*/
 } /*}}} */
 
 void clearMatrix() { /*{{{*/
-  fill_solid(leds, numLeds, CRGB::Black);
+  fill_solid(leds, matrixNumLeds, CRGB::Black);
   FastLED.show();
 } /*}}} */
 
@@ -299,6 +285,42 @@ void matrix_setup() /*{{{*/{
   FastLED.addLeds<NEOPIXEL, matrixDinPin>(leds, numLeds);
   FastLED.setBrightness(matrixLedBrightness);
 } /*}}}*/
+
+void pressure_release_setup() { /*{{{*/
+  // Reset LEDs
+  for(uint8_t i=0; i < pressureReleaseNumLeds; i++) {
+    leds[i + matrixNumLeds] = CRGB::Black;
+  }
+
+  // Light the middle pressure light
+  leds[matrixNumLeds + (pressureReleaseNumLeds / 2)] = CRGB::Green;
+
+  // 0000x0000
+  // Pressure Release values from -4 to 4
+  pressureReleaseCurrentLevel = 0;
+
+  // In which direction does the pressure move?
+  // -1 left
+  // +1 right
+  pressureReleaseCurrentDirection = random(0, 2) == 0 ? -1 : 1;
+
+  // remember starttime
+  pressureReleaseTimerMsec = millis();
+
+  // When does a new step occur?
+  pressureReleaseNextStepMsec = 4000;
+
+  #ifdef DEBUG
+    Serial.print("pressure_release_setup: Current level 0 with direction "); 
+    Serial.println(pressureReleaseCurrentDirection);
+  #endif
+} /*}}} */
+
+void displayScore() { /*{{{*/
+  matrixSetByArray(matrixPicBorder, 0, 0, CRGB::Grey);
+  matrixSetByIndex((state.score/10), 1, 2, CRGB::Grey);
+  matrixSetByIndex((state.score%10), 5, 2, CRGB::Grey);
+} /*}}} */
 
 void game_setup() {/*{{{*/
   randomSeed(analogRead(4));
@@ -758,18 +780,12 @@ void game_poti_check_solution() { /*{{{*/
   }
 } /*}}} */
 
-// STATE: 110
-void displayScore() { /*{{{*/
-  matrixSetByArray(matrixPicBorder, 0, 0, CRGB::Grey);
-  matrixSetByIndex((state.score/10), 1, 2, CRGB::Grey);
-  matrixSetByIndex((state.score%10), 5, 2, CRGB::Grey);
-} /*}}} */
-
 // STATE: 1 ... 110
 void game_master_loop() { /*{{{*/
   switch (state.current) {
     case 1:
       game_setup();
+      pressure_release_setup();
       changeStateTo(2, 1);
       break;
     case 2 ... 9:
@@ -855,7 +871,6 @@ void game_master_loop() { /*{{{*/
       break;
     case 101:
       // Game won!
-      Serial.println("SCORE!");
       state.score++;
       clearMatrix();
       matrixSetByArray(matrixPicSmileyPositive, 0,0, CRGB::Green);
@@ -885,12 +900,59 @@ void game_master_loop() { /*{{{*/
   }
 } /*}}} */
 
+// Pressure Release Main loop
+void pressure_release_loop() { /*{{{*/
+
+  // Change pressure level if the timer has elapsed
+  if (millis() >= pressureReleaseTimerMsec + pressureReleaseNextStepMsec) {
+    // Reset current level
+    leds[matrixNumLeds + pressureReleaseCurrentLevel] = CRGB::Black;
+
+    // Increase level in the direction
+    pressureReleaseCurrentLevel += pressureReleaseCurrentDirection;
+
+    #ifdef DEBUG
+      Serial.print("pressure_release_loop: pressureReleaseCurrentLevel (-4 <- 0 -> 4) = ");
+      Serial.print(pressureReleaseCurrentLevel);
+    #endif
+
+    //  0 --- 4 --- 9 (LEDs)
+    // -4 --- 0 --- 4 (Level) 
+    if (pressureReleaseCurrentLevel <= -(pressureReleaseNumLeds/2) || pressureReleaseCurrentLevel >= (pressureReleaseNumLeds/2)) {
+      // Lost!
+      pressure_release_setup();
+      changeStateTo(100, 1);
+    } else if(pressureReleaseCurrentLevel == 0) {
+      // When level is 0 choose a new direction
+      pressureReleaseCurrentDirection = random(0, 2) == 0 ? -1 : 1;
+
+      #ifdef DEBUG
+        Serial.print("; New direction = ");
+        Serial.print(pressureReleaseCurrentDirection);
+      #endif
+    } 
+    
+    // Display current level and middle point
+    leds[matrixNumLeds + pressureReleaseCurrentLevel + (pressureReleaseNumLeds/2)] = CRGB::Red;
+    leds[matrixNumLeds + (pressureReleaseNumLeds/2)] = CRGB::Green;
+
+    #ifdef DEBUG
+      Serial.print("; Red LED = ");
+      Serial.println(matrixNumLeds + pressureReleaseCurrentLevel + (pressureReleaseNumLeds/2));
+    #endif
+
+    // Set new timer
+    pressureReleaseTimerMsec = millis();
+  }
+} /*}}} */
+
 // Main arduino setup
 void setup() /*{{{*/
 {
   Serial.begin(9600);
   
   matrix_setup();
+  pressure_release_setup();
   game_setup();
 }/*}}}*/
 
@@ -908,6 +970,9 @@ void loop() /*{{{*/
  
   // Run master loop
   game_master_loop();
+
+  // Run pressure release loop
+  pressure_release_loop();
 
   // If leds have been modified, show them
   if (ledsModified > 0) {
