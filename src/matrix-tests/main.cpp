@@ -29,7 +29,7 @@ extern HardwareSerial Serial;
 
 const byte alphaElementSize = 13;
 const byte matrixDinPin = A2;
-const byte numLeds = 100;
+const byte numLeds = 110;
 const byte matrixLedBrightness = 5;
 CRGB leds[numLeds];
 
@@ -108,7 +108,8 @@ void matrix_setup() /*{{{*/{
 /*}}}*/
 
 void matrix_loop() /*{{{*/{
-  matrixSetByIndex(2, 0,0, CRGB::Yellow);
+  //matrixSetByIndex(2, 0,0, CRGB::Yellow);
+  fill_solid(leds, numLeds, CRGB::Green);
 }
 /*}}}*/
 
