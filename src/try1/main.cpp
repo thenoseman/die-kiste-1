@@ -54,11 +54,13 @@ unsigned long previousProgress = 0;
 /*}}}*/
 
 /*{{{ PRESSURE RELEASE SETTINGS */
+uint8_t pressureReleaseIsTicking = 1;
 const uint8_t pressureReleaseNumLeds = 9;
 int8_t pressureReleaseCurrentLevel = 0;
 int8_t pressureReleaseCurrentDirection = 1;
 unsigned long pressureReleaseTimerMsec;
-unsigned long pressureReleaseNextStepMsec = 4000;
+unsigned long pressureReleaseNextStepMsec;
+unsigned long pressureReleaseFirstStepMsec;
 /*}}}*/
 
 /* MATRIX SETTINGS {{{*/
@@ -286,14 +288,22 @@ void matrix_setup() /*{{{*/{
   FastLED.setBrightness(matrixLedBrightness);
 } /*}}}*/
 
-void pressure_release_setup() { /*{{{*/
+void pressure_release_clear(uint8_t drawMiddle) { /*{{{*/
   // Reset LEDs
   for(uint8_t i=0; i < pressureReleaseNumLeds; i++) {
     leds[i + matrixNumLeds] = CRGB::Black;
   }
 
   // Light the middle pressure light
-  leds[matrixNumLeds + (pressureReleaseNumLeds / 2)] = CRGB::Green;
+  if (drawMiddle == 1) {
+    leds[matrixNumLeds + (pressureReleaseNumLeds / 2)] = CRGB::Green;
+  }
+
+  ledsModified = 2;
+} /*}}} */
+
+void pressure_release_setup() { /*{{{*/
+  pressure_release_clear(1);
 
   // 0000x0000
   // Pressure Release values from -4 to 4
@@ -308,12 +318,17 @@ void pressure_release_setup() { /*{{{*/
   pressureReleaseTimerMsec = millis();
 
   // When does a new step occur?
+  pressureReleaseFirstStepMsec = 2000;
   pressureReleaseNextStepMsec = 4000;
+
+  pressureReleaseIsTicking = 0;
 
   #ifdef DEBUG
     Serial.print("pressure_release_setup: Current level 0 with direction "); 
     Serial.println(pressureReleaseCurrentDirection);
   #endif
+
+  pressure_release_clear(1);
 } /*}}} */
 
 void displayScore() { /*{{{*/
@@ -334,6 +349,7 @@ void game_intro_loop() { /*{{{*/
   switch (state.current) {
     case 2:
       if (state.next == 0) {
+        pressure_release_clear(1);
         matrixSetByArray(matrixPicBig3, 0, 0, CRGB::Red);
         changeStateTo(3, 750);
       }
@@ -689,7 +705,7 @@ void game_poti_reset() { /*{{{*/
 
       // How much time does the player get to solve it, msec
       // TODO dynamic!
-      gamePotiTimeToSolveMsec = 10000;
+      gamePotiTimeToSolveMsec = 15000;
     }
   }
 
@@ -785,8 +801,8 @@ void game_master_loop() { /*{{{*/
   switch (state.current) {
     case 1:
       game_setup();
-      pressure_release_setup();
       changeStateTo(2, 1);
+      pressure_release_setup();
       break;
     case 2 ... 9:
       // 3 ... 2 ... 1 ... GO!
@@ -795,6 +811,7 @@ void game_master_loop() { /*{{{*/
     case 10:
       // Choose a random game
       game_choose();
+      pressureReleaseIsTicking = 1;
       break;
     case 20:
       // Generate fresh switchboard game
@@ -852,11 +869,18 @@ void game_master_loop() { /*{{{*/
 
       // reduce life by one
       state.lifes--;
+
+      // Show Smiley
       clearMatrix();
+
       matrixSetByArray(matrixPicSmileyNegative, 0,0, CRGB::Crimson);
 
+      // Turn off pressure release game
+      pressureReleaseIsTicking = 0;
+      pressure_release_clear(1);
+
       #ifdef DEBUG
-        Serial.print("lifes left = ");
+        Serial.print("Lifes left = ");
         Serial.println(state.lifes);
       #endif
 
@@ -872,15 +896,20 @@ void game_master_loop() { /*{{{*/
     case 101:
       // Game won!
       state.score++;
+
       clearMatrix();
+      // Show smiley
       matrixSetByArray(matrixPicSmileyPositive, 0,0, CRGB::Green);
+
       changeStateTo(102, 1);
       break;
     case 102:
+      // Restart game:
       changeStateTo(2, 2000);
       break;
     case 110:
       // Show lifes and reset
+      pressure_release_setup();
       matrixSetByArray(matrixPicMan, 0, 0, CRGB::Yellow);
       matrixSetByIndex(state.lifes, 5, 3, CRGB::Green);
       changeStateTo(2, 2000);
@@ -896,6 +925,7 @@ void game_master_loop() { /*{{{*/
       break;
     case 200:
       clearMatrix();
+      pressure_release_clear(0);
       break;
   }
 } /*}}} */
@@ -903,10 +933,14 @@ void game_master_loop() { /*{{{*/
 // Pressure Release Main loop
 void pressure_release_loop() { /*{{{*/
 
+  if (pressureReleaseIsTicking == 0) {
+    return;
+  }
+
   // Change pressure level if the timer has elapsed
-  if (millis() >= pressureReleaseTimerMsec + pressureReleaseNextStepMsec) {
-    // Reset current level
-    leds[matrixNumLeds + pressureReleaseCurrentLevel] = CRGB::Black;
+  if (millis() >= pressureReleaseTimerMsec + pressureReleaseNextStepMsec + pressureReleaseFirstStepMsec) {
+    // Just once, so reset:
+    pressureReleaseFirstStepMsec = 0;
 
     // Increase level in the direction
     pressureReleaseCurrentLevel += pressureReleaseCurrentDirection;
@@ -914,13 +948,17 @@ void pressure_release_loop() { /*{{{*/
     #ifdef DEBUG
       Serial.print("pressure_release_loop: pressureReleaseCurrentLevel (-4 <- 0 -> 4) = ");
       Serial.print(pressureReleaseCurrentLevel);
+      Serial.print("; Direction =");
+      Serial.print(pressureReleaseCurrentDirection);
     #endif
 
     //  0 --- 4 --- 9 (LEDs)
     // -4 --- 0 --- 4 (Level) 
-    if (pressureReleaseCurrentLevel <= -(pressureReleaseNumLeds/2) || pressureReleaseCurrentLevel >= (pressureReleaseNumLeds/2)) {
+    if (pressureReleaseCurrentLevel < -(pressureReleaseNumLeds/2) || pressureReleaseCurrentLevel > (pressureReleaseNumLeds/2)) {
       // Lost!
-      pressure_release_setup();
+      #ifdef DEBUG
+        Serial.println("pressure_release_loop: Timer over!");
+      #endif
       changeStateTo(100, 1);
     } else if(pressureReleaseCurrentLevel == 0) {
       // When level is 0 choose a new direction
@@ -943,6 +981,7 @@ void pressure_release_loop() { /*{{{*/
 
     // Set new timer
     pressureReleaseTimerMsec = millis();
+    ledsModified = 2;
   }
 } /*}}} */
 
@@ -965,14 +1004,15 @@ void loop() /*{{{*/
   // Reset all LEDs
   if (ledsModified == 1) {
     ledsModified = 0;
-    fill_solid(leds, numLeds, CRGB::Black);
+    fill_solid(leds, matrixNumLeds, CRGB::Black);
   }
+
+  // Run pressure release loop
+  pressure_release_loop();
  
   // Run master loop
   game_master_loop();
 
-  // Run pressure release loop
-  pressure_release_loop();
 
   // If leds have been modified, show them
   if (ledsModified > 0) {
