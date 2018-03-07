@@ -69,6 +69,8 @@ int8_t pressureReleaseCurrentDirection = 1;
 unsigned long pressureReleaseTimerMsec;
 unsigned long pressureReleaseNextStepMsec;
 unsigned long pressureReleaseFirstStepMsec;
+const uint8_t pressureReleasePinIn[] = { A1, A2 };
+uint8_t pressureReleaseCurrentButton = 255;
 /*}}}*/
 
 /* MATRIX SETTINGS {{{*/
@@ -296,6 +298,62 @@ void matrix_setup() /*{{{*/{
   FastLED.setBrightness(matrixLedBrightness);
 } /*}}}*/
 
+void pressure_release_draw_state() { /*{{{*/
+  uint8_t currentLit = matrixNumLeds + pressureReleaseCurrentLevel + (pressureReleaseNumLeds/2);
+  uint8_t middle = matrixNumLeds + (pressureReleaseNumLeds/2);
+
+  // Display current level and middle point
+  for(uint8_t i=0; i < pressureReleaseNumLeds; i++) {
+    // Reset
+    leds[matrixNumLeds + i] = CRGB::Black;
+  }
+
+  leds[currentLit] = CRGB::Red;
+  leds[middle] = CRGB::Green;
+} /*}}} */
+
+void pressure_release_button_handling() { /*{{{*/
+  // LOW == pressed
+  if (digitalRead(pressureReleasePinIn[0]) == LOW) {
+    pressureReleaseCurrentButton = 0;
+  } else if (digitalRead(pressureReleasePinIn[1]) == LOW) {
+    // RIGHT BUTTON
+    pressureReleaseCurrentButton = 1;
+  } 
+
+  // Button 0 released -> modify counter
+  if ( digitalRead(pressureReleasePinIn[0]) == HIGH && pressureReleaseCurrentButton == 0 && pressureReleaseCurrentLevel < (pressureReleaseNumLeds/2)) {
+    // LEFT button
+    pressureReleaseCurrentLevel++; 
+
+    #ifdef DEBUG
+      Serial.print("pressure_release_button_handling: Button #0 (LEFT) released");
+    #endif
+
+    pressure_release_draw_state();
+    pressureReleaseCurrentButton = 255;
+  }
+
+  // Button 1 released -> modify counter
+  if (digitalRead(pressureReleasePinIn[1]) == HIGH && pressureReleaseCurrentButton == 1 && pressureReleaseCurrentLevel > -(pressureReleaseNumLeds/2)) {
+    pressureReleaseCurrentLevel--; 
+
+    #ifdef DEBUG
+      Serial.print("pressure_release_button_handling: Button #1 (RIGHT) released");
+    #endif
+
+    pressure_release_draw_state();
+    pressureReleaseCurrentButton = 255;
+  }
+
+  #ifdef DEBUG
+    if (pressureReleaseCurrentButton == 255) {
+      Serial.print("pressure_release_button_handling: pressureReleaseCurrentLevel = ");
+      Serial.println(pressureReleaseCurrentLevel);
+    }
+  #endif
+} /*}}} */
+
 void pressure_release_clear(uint8_t drawMiddle) { /*{{{*/
   // Reset LEDs
   for(uint8_t i=0; i < pressureReleaseNumLeds; i++) {
@@ -329,7 +387,12 @@ void pressure_release_setup() { /*{{{*/
   pressureReleaseFirstStepMsec = 2000;
   pressureReleaseNextStepMsec = 4000;
 
+  // Not running
   pressureReleaseIsTicking = 0;
+
+  // Set pins
+  pinMode(pressureReleasePinIn[0], INPUT_PULLUP);
+  pinMode(pressureReleasePinIn[1], INPUT_PULLUP);
 
   #ifdef DEBUG
     Serial.print("pressure_release_setup: Current level 0 with direction "); 
@@ -942,8 +1005,15 @@ void game_master_loop() { /*{{{*/
 void pressure_release_loop() { /*{{{*/
 
   if (pressureReleaseIsTicking == 0) {
+    #ifdef DEBUG
+      Serial.println("pressure_release_loop: Not ticking!");
+    #endif
+
     return;
   }
+
+  // Handle Button presses
+  pressure_release_button_handling();
 
   // Change pressure level if the timer has elapsed
   if (millis() >= pressureReleaseTimerMsec + pressureReleaseNextStepMsec + pressureReleaseFirstStepMsec) {
@@ -954,7 +1024,7 @@ void pressure_release_loop() { /*{{{*/
     pressureReleaseCurrentLevel += pressureReleaseCurrentDirection;
 
     #ifdef DEBUG
-      Serial.print("pressure_release_loop: pressureReleaseCurrentLevel (-4 <- 0 -> 4) = ");
+      Serial.print("pressure_release_loop: pressureReleaseCurrentLevel = ");
       Serial.print(pressureReleaseCurrentLevel);
       Serial.print("; Direction =");
       Serial.print(pressureReleaseCurrentDirection);
@@ -978,9 +1048,7 @@ void pressure_release_loop() { /*{{{*/
       #endif
     } 
     
-    // Display current level and middle point
-    leds[matrixNumLeds + pressureReleaseCurrentLevel + (pressureReleaseNumLeds/2)] = CRGB::Red;
-    leds[matrixNumLeds + (pressureReleaseNumLeds/2)] = CRGB::Green;
+    pressure_release_draw_state();
 
     #ifdef DEBUG
       Serial.print("; Red LED = ");
@@ -1016,10 +1084,13 @@ void loop() /*{{{*/
   }
 
   // Run pressure release loop
+  // TEMP
+  pressureReleaseIsTicking = 1;
   pressure_release_loop();
  
   // Run master loop
-  game_master_loop();
+  // TEMP
+  //game_master_loop();
 
 
   // If leds have been modified, show them
