@@ -31,6 +31,14 @@ extern HardwareSerial Serial;
 //
 // Potis read 1 full counterclockwise and GAME_POTI_MAP_TO_MAX full clockwise
 //
+// Arcade switches are connected as follows (looking straight at the NO/NC pins from the front)
+//
+//                GND 
+// LEDPinIn -> |___|___| -> GND
+//               |   |
+//               | - |
+// Button Out <- | - |
+// (NC)          |___|
 
 /* GLOBAL GAME STATE {{{*/
 typedef struct State {
