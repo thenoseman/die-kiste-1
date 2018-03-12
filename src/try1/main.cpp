@@ -2,7 +2,6 @@
 #include <HardwareSerial.h>
 #include <FastLED.h>
 #include <PGMWrap.h>
-#include <TimerOne.h>
 
 extern HardwareSerial Serial;
 
@@ -198,6 +197,8 @@ int8_p matrixPicPoti1[13] PROGMEM = {252,24,54,112,128,49,198,24,227,204,182,241
 int8_p matrixPicPoti2[13] PROGMEM = {252,216,54,115,140,49,198,24,224,192,134,241,3};
 int8_p matrixPicPoti3[13] PROGMEM = {252,24,54,124,184,113,198,24,224,192,134,241,3};
 int8_p matrixPicPoti4[13] PROGMEM = {252,24,54,112,128,49,198,25,238,240,134,241,3};
+int8_p matrixPicIntro1[13] PROGMEM = {0,4,112,68,25,245,215,95,198,17,1,0,0};
+int8_p matrixPicIntro2[13] PROGMEM = {0,4,48,194,12,251,237,55,195,8,1,0,0};
 /*}}}*/
 
 void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
@@ -414,6 +415,62 @@ void game_setup() {/*{{{*/
   state.score = 0;
   state.current = 1;
 } /*}}}*/
+
+void game_over_or_next_game() { /*{{{*/
+  // Must change state to 0 so that this case is not called again
+  state.current = 0;
+
+  // reduce life by one
+  state.lifes--;
+
+  // Show Smiley
+  clearMatrix();
+
+  matrixSetByArray(matrixPicSmileyNegative, 0,0, CRGB::Crimson);
+
+  // Turn off pressure release game
+  pressureReleaseIsTicking = 0;
+  pressure_release_clear(1);
+
+  #ifdef DEBUG
+    Serial.print("Lifes left = ");
+    Serial.println(state.lifes);
+  #endif
+
+  if (state.lifes == 0) {
+    // All lifes lost, game over
+    changeStateTo(111, 1500);
+  } else {
+    // Show life lost and reset
+    changeStateTo(110, 1500);
+  }
+} /*}}} */
+
+void press_any_button_to_start_game() { /*{{{*/
+  uint8_t pressed = 0;
+  uint8_t i;
+
+  // Read arcade buttons
+  for(i=0; i < gameArcadeButtonNumberOfButtons; i++) {
+    if(digitalRead(gameArcadeButtonPinsDin[i] == HIGH)) {
+      pressed = 1;
+      break;
+    }
+  }
+
+  // read pressure buttons
+  for(i=0; i < 2; i++) {
+    if(digitalRead(pressureReleasePinIn[i] == HIGH)) {
+      pressed = 1;
+      break;
+    }
+  }
+
+  // If any button was pressed, start game...
+  if (pressed == 1) {
+    changeStateTo(1, 1);
+  }
+} /*}}} */
 
 // STATE: 2 ... 9
 void game_intro_loop() { /*{{{*/
@@ -872,8 +929,8 @@ void game_master_loop() { /*{{{*/
   switch (state.current) {
     case 1:
       game_setup();
-      changeStateTo(2, 1);
       pressure_release_setup();
+      changeStateTo(2, 1);
       break;
     case 2 ... 9:
       // 3 ... 2 ... 1 ... GO!
@@ -934,35 +991,7 @@ void game_master_loop() { /*{{{*/
       break;
     case 100:
       // Game lost -> show smiley -> new game or game over
-
-      // Must change state to 0 so that this case is not called again
-      state.current = 0;
-
-      // reduce life by one
-      state.lifes--;
-
-      // Show Smiley
-      clearMatrix();
-
-      matrixSetByArray(matrixPicSmileyNegative, 0,0, CRGB::Crimson);
-
-      // Turn off pressure release game
-      pressureReleaseIsTicking = 0;
-      pressure_release_clear(1);
-
-      #ifdef DEBUG
-        Serial.print("Lifes left = ");
-        Serial.println(state.lifes);
-      #endif
-
-      if (state.lifes == 0) {
-        // All lifes lost, game over
-        changeStateTo(111, 1500);
-      } else {
-        // Show life lost and reset
-        changeStateTo(110, 1500);
-      }
-
+      game_over_or_next_game();
       break;
     case 101:
       // Game won!
@@ -991,10 +1020,28 @@ void game_master_loop() { /*{{{*/
       changeStateTo(112, 2000);
       break;
     case 112:
+      // Display score and end game
       displayScore();
       changeStateTo(200, 8000);
       break;
+    case 150:
+      // Box intro 1
+      if (state.next == 0) {
+        matrixSetByArray(matrixPicIntro1, 0, 0, CRGB::Red);
+        changeStateTo(151, 1500);
+      }
+      press_any_button_to_start_game();
+      break;
+    case 151:
+      // Box intro 2
+      if (state.next == 0) {
+        matrixSetByArray(matrixPicIntro2, 0, 0, CRGB::Red);
+        changeStateTo(150, 1500);
+      }
+      press_any_button_to_start_game();
+      break;
     case 200:
+      // Turn off every led and reset all games
       clearMatrix();
       pressure_release_clear(0);
       break;
