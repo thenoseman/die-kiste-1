@@ -48,7 +48,7 @@ typedef struct State {
   unsigned int lifes;
 } State;
 
-State state = { .current = 0, .next = 0, .nextStateAtMsec = 0, .score = 0, .lifes = 3};
+State state = { .current = 150, .next = 0, .nextStateAtMsec = 0, .score = 0, .lifes = 3};
 
 // Currently active game
 int activeGame = 0;
@@ -78,7 +78,7 @@ const int matrixDinPin = A0;
 // 100 Leds for display (10x10) and 9 leds for pressure_release_game
 const int matrixNumLeds = 100;
 const int numLeds = matrixNumLeds + pressureReleaseNumLeds;
-const int matrixLedBrightness = 5;
+const int matrixLedBrightness = 50;
 
 // 0 = no LED update
 // 1 = full clear + update
@@ -1137,7 +1137,7 @@ void loop() /*{{{*/
  
   // Run master loop
   // TEMP
-  //game_master_loop();
+  game_master_loop();
 
 
   // If leds have been modified, show them
