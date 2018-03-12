@@ -1044,6 +1044,7 @@ void game_master_loop() { /*{{{*/
       // Turn off every led and reset all games
       clearMatrix();
       pressure_release_clear(0);
+      changeStateTo(150, 10);
       break;
   }
 } /*}}} */
