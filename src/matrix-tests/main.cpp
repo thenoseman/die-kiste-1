@@ -28,8 +28,8 @@ extern HardwareSerial Serial;
 //                     +--------------------------------+
 
 const byte alphaElementSize = 13;
-const byte matrixDinPin = A2;
-const byte numLeds = 110;
+const byte matrixDinPin = A0;
+const byte numLeds = 100;
 const byte matrixLedBrightness = 5;
 CRGB leds[numLeds];
 
