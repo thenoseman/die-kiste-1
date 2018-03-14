@@ -13,12 +13,12 @@ extern HardwareSerial Serial;
 //                      | [ ]V.ref     ___     SS/D10[ ]~| <- arcadeBtnsDin[2]
 // MATRIX_LED_PIN    <- | [ ]A0       / N \        D9[ ]~| <- arcadeBtnsDin[1]
 // PRESSURE_BTN_PIN0 -> | [ ]A1      /  A  \       D8[ ] | <- arcadeBtnsDin[0]
-// PRESSURE_BTN_PIN1 -> | [ ]A2      \  N  /       D7[ ] | <- switchboardPins[5] => 64
-// PRESSURE_LED_PIN  <- | [ ]A3       \_0_/        D6[ ]~| <- switchboardPins[4] => 32
-//     potiPins[0]   -> | [ ]A4/SDA                D5[ ]~| <- switchboardPins[3] => 16
-//     potiPins[1]   -> | [ ]A5/SCL                D4[ ] | <- switchboardPins[2] => 8
-//     potiPins[2]   -> | [ ]A6 (noDIn)       INT1/D3[ ]~| <- switchboardPins[1] => 4
-//     potiPins[3]   -> | [ ]A7 (noDIn)       INT0/D2[ ] | <- switchboardPins[0] => 2
+// PRESSURE_BTN_PIN1 -> | [ ]A2      \  N  /       D7[ ] | <- switchboardPins[5] => 64 (ONE COUNTERCLOCKWISE OF TOP)
+//                      | [ ]A3       \_0_/        D6[ ]~| <- switchboardPins[4] => 32
+// LT  potiPins[0]   -> | [ ]A4/SDA                D5[ ]~| <- switchboardPins[3] => 16
+// RT  potiPins[1]   -> | [ ]A5/SCL                D4[ ] | <- switchboardPins[2] => 8
+// LB  potiPins[2]   -> | [ ]A6 (noDIn)       INT1/D3[ ]~| <- switchboardPins[1] => 4 (FIRST CLOCKWISE)
+// RB  potiPins[3]   -> | [ ]A7 (noDIn)       INT0/D2[ ] | <- switchboardPins[0] => 2 (TOP)
 //                      | [ ]5V                   GND[ ] |
 //                      | [ ]RST                  RST[ ] |
 //                      | [ ]GND   5V MOSI GND D0/RX1[ ] |
@@ -38,6 +38,15 @@ extern HardwareSerial Serial;
 //               | - |
 // Button Out <- | - |
 // (NC)          |___|
+
+/* DEBUG SETTINGS {{{ */
+// Cancel all things related to the pressure release game
+uint8_t no_pressure_release_game = 1; 
+// Force a specific game to repeat over and over
+uint8_t force_game_nr = 1;
+// Overwrite time to solve 
+unsigned long force_time_to_solve_msec = 999999;
+/*}}} */
 
 /* GLOBAL GAME STATE {{{*/
 typedef struct State {
@@ -154,16 +163,20 @@ uint8_t buttonsToPress[20];
 /* POTI SETTINGS {{{*/
 #define GAME_POTI_NUM_POTIS 4 
 #define GAME_POTI_MAP_TO_MAX 6
-const uint8_t gamePotiCount = GAME_POTI_NUM_POTIS;
 const uint8_t gamePotiPins[] = { A4, A5, A6, A7 };
 uint8_t gamePotiChallenge[] = { 0, 0, 0, 0 };
-uint8_t gamePotiHintStartColumn[] = { 0, 5, 0, 5 };
-uint8_t gamePotiHintStartRow[] = { 5, 5, 0, 0 };
 unsigned long gamePotiTimeToSolveMsec = 5000;
 unsigned long gamePotiChallengeStartMsec;
 uint8_t gamePotiReadings[GAME_POTI_NUM_POTIS][10];
-uint8_t gamePotiReadingsIndex[GAME_POTI_NUM_POTIS] = {0, 0, 0, 0};
-uint8_t gamePotiCurrentValue[GAME_POTI_NUM_POTIS] = {0, 0, 0, 0};
+uint8_t gamePotiReadingsIndex[GAME_POTI_NUM_POTIS] = { 0, 0, 0, 0 };
+uint8_t gamePotiCurrentValue[GAME_POTI_NUM_POTIS] = { 0, 0, 0, 0 };
+
+// 0 = Top Left
+// 1 = Top Right
+// 2 = Bottom Left
+// 3 = Bottom Right
+uint8_t gamePotiHintStartColumn[] = { 0, 5, 0, 5 };
+uint8_t gamePotiHintStartRow[] = { 5, 5, 0, 0 };
 /*}}}*/
 
 /* alpha {{{*/
@@ -356,6 +369,11 @@ void pressure_release_button_handling() { /*{{{*/
 } /*}}} */
 
 void pressure_release_clear(uint8_t drawMiddle) { /*{{{*/
+
+  if(no_pressure_release_game == 1) {
+    return;
+  }
+
   // Reset LEDs
   for(uint8_t i=0; i < pressureReleaseNumLeds; i++) {
     leds[i + matrixNumLeds] = CRGB::Black;
@@ -370,6 +388,11 @@ void pressure_release_clear(uint8_t drawMiddle) { /*{{{*/
 } /*}}} */
 
 void pressure_release_setup() { /*{{{*/
+  // Cancel if not wanted
+  if (no_pressure_release_game == 1) {
+    return;
+  }
+
   pressure_release_clear(1);
 
   // 0000x0000
@@ -499,9 +522,11 @@ void game_intro_loop() { /*{{{*/
 
 // STATE: 10
 void game_choose() { /*{{{*/
-  activeGame = random(1, numberOfGames + 1); 
-  // TEMP
-  activeGame = 3;
+  if (force_game_nr > 0) {
+    activeGame = force_game_nr;
+  } else {
+    activeGame = random(1, numberOfGames + 1); 
+  }
 
   // Every game has 10 possible states
   changeStateTo((activeGame * 10) + 10, 1);
@@ -512,7 +537,7 @@ void game_choose() { /*{{{*/
   #endif
 } /*}}} */
 
-// STATE: 20
+// STATE: 20 (GAME 1: SWITCHBOARD)
 void game_switchboard_reset() { /*{{{*/
   switchboard.activePin1 = random(0, gameSwitchboardPinNum);
 
@@ -627,7 +652,7 @@ void game_switchboard_loop() { /*{{{*/
   }
 } /*}}} */
 
-// STATE: 30
+// STATE: 30 (GAME 2: ARCADE BUTTON)
 void game_arcade_button_reset() { /*{{{*/
 
   // Set PINS
@@ -809,12 +834,12 @@ void game_arcade_button_loop() { /*{{{*/
   }
 } /*}}} */
 
-// STATE: 40
+// STATE: 40 (GAME 3: POTIS)
 void game_poti_reset() { /*{{{*/
 
   if (state.next == 0) {
     // Reset pins and generate new task
-    for(uint8_t i; i < gamePotiCount; i++) {
+    for(uint8_t i; i < GAME_POTI_NUM_POTIS; i++) {
       pinMode(gamePotiPins[i], INPUT);
       gamePotiChallenge[i] = int(random(1, GAME_POTI_MAP_TO_MAX + 1));
       gamePotiCurrentValue[i] = map(analogRead(gamePotiPins[i]), 0, 1023, GAME_POTI_MAP_TO_MAX, 0);
@@ -833,7 +858,11 @@ void game_poti_reset() { /*{{{*/
 
       // How much time does the player get to solve it, msec
       // TODO dynamic!
-      gamePotiTimeToSolveMsec = 15000;
+      if (force_time_to_solve_msec > 0) {
+        gamePotiTimeToSolveMsec = force_time_to_solve_msec;
+      } else {
+        gamePotiTimeToSolveMsec = 15000;
+      }
     }
   }
 
@@ -843,7 +872,7 @@ void game_poti_reset() { /*{{{*/
 // STATE: 42
 void game_poti_show_challenge() { /*{{{*/
   if (state.next == 0) {
-    for(uint8_t i = 0; i < gamePotiCount; i++) {
+    for(uint8_t i = 0; i < GAME_POTI_NUM_POTIS; i++) {
       #ifdef DEBUG
        Serial.print("Showing poti #");
        Serial.print(i);
@@ -872,7 +901,7 @@ void game_poti_detect_potis() { /*{{{*/
   #endif
 
   // Read all potis remembering the last 10 values
-  for(uint8_t potiIndex = 0; potiIndex < gamePotiCount; potiIndex++) {
+  for(uint8_t potiIndex = 0; potiIndex < GAME_POTI_NUM_POTIS; potiIndex++) {
     gamePotiReadings[potiIndex][gamePotiReadingsIndex[potiIndex]] = map(analogRead(gamePotiPins[potiIndex]), 0, 1023, GAME_POTI_MAP_TO_MAX, 0);
 
     gamePotiReadingsIndex[potiIndex]++;
@@ -903,14 +932,14 @@ void game_poti_check_solution() { /*{{{*/
   uint8_t correctPotis = 0;
 
   // Check all current poti values for correctness
-  for(uint8_t potiIndex = 0; potiIndex < gamePotiCount; potiIndex++) {
+  for(uint8_t potiIndex = 0; potiIndex < GAME_POTI_NUM_POTIS; potiIndex++) {
     if (gamePotiCurrentValue[potiIndex] == gamePotiChallenge[potiIndex]) {
       correctPotis++;
     }
   }
 
   // All correct?
-  if (correctPotis == gamePotiCount) {
+  if (correctPotis == GAME_POTI_NUM_POTIS) {
     changeStateTo(101, 1);
   } else {
     // Progress bar
@@ -1051,6 +1080,9 @@ void game_master_loop() { /*{{{*/
 
 // Pressure Release Main loop
 void pressure_release_loop() { /*{{{*/
+  if (no_pressure_release_game == 1) {
+    return;
+  }
 
   if (pressureReleaseIsTicking == 0) {
     #ifdef DEBUG
@@ -1132,12 +1164,10 @@ void loop() /*{{{*/
   }
 
   // Run pressure release loop
-  // TEMP
   pressureReleaseIsTicking = 1;
   pressure_release_loop();
  
   // Run master loop
-  // TEMP
   game_master_loop();
 
 
