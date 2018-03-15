@@ -436,7 +436,13 @@ void game_setup() {/*{{{*/
   randomSeed(analogRead(4));
   state.lifes = 3;
   state.score = 0;
-  state.current = 1;
+
+  if (force_game_nr > 0) {
+    state.current = 1;
+  } else {
+    // Start at "press any key"
+    state.current = 150;
+  }
 } /*}}}*/
 
 void game_over_or_next_game() { /*{{{*/
@@ -497,6 +503,11 @@ void press_any_button_to_start_game() { /*{{{*/
 
 // STATE: 2 ... 9
 void game_intro_loop() { /*{{{*/
+  // instantly change state if one game is forced
+  if (force_game_nr > 0) {
+    changeStateTo(10, 1);
+  }
+
   switch (state.current) {
     case 2:
       if (state.next == 0) {
