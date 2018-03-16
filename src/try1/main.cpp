@@ -38,12 +38,24 @@ extern HardwareSerial Serial;
 //               | - |
 // Button Out <- | - |
 // (NC)          |___|
+//
+// GAMES:
+//
+// 1. Switchboard
+// The game will display a number which is the addition of the two ports to connect
+// eg. when 36 is shown connect D4 (Value 4) and D6 (Value 32)
+//
+// 2. Arcade Buttons
+// A sequence of buttons will be displayed. Press them in this order. Thinks the classical Senso/Simon game.
+//
+// 3. Potentiometer
+// Dial the potentiometers in each corner to the corresponding value
 
 /* DEBUG SETTINGS {{{ */
 // Cancel all things related to the pressure release game
 uint8_t no_pressure_release_game = 1; 
 // Force a specific game to repeat over and over
-uint8_t force_game_nr = 1;
+uint8_t force_game_nr = 3;
 // Overwrite time to solve 
 unsigned long force_time_to_solve_msec = 999999;
 /*}}} */
