@@ -920,7 +920,7 @@ void game_poti_show_challenge() { /*{{{*/
 // STATE: 43
 void game_poti_detect_potis() { /*{{{*/
   #ifdef DEBUG
-    Serial.print("game_poti_detect_potis: Read potis = ");
+    Serial.print("game_poti_detect_potis: Current/Target = ");
   #endif
 
   // Read all potis remembering the last 10 values
@@ -941,6 +941,8 @@ void game_poti_detect_potis() { /*{{{*/
 
     #ifdef DEBUG
       Serial.print(gamePotiCurrentValue[potiIndex]);
+      Serial.print("/");
+      Serial.print(gamePotiChallenge[potiIndex]);
       Serial.print(", ");
     #endif
   }
