@@ -35,6 +35,11 @@ void setup()
 {
   Serial.begin(9600);
   Serial.println("SETUP");
+
+  pinMode(A4, INPUT_PULLUP);
+  pinMode(A5, INPUT_PULLUP);
+  pinMode(A6, INPUT_PULLUP);
+  pinMode(A7, INPUT_PULLUP);
 }
 
 void loop()
