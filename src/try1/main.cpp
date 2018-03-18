@@ -30,6 +30,13 @@ extern HardwareSerial Serial;
 //
 // Potis read 1 full counterclockwise and GAME_POTI_MAP_TO_MAX full clockwise
 //
+// Poti Cables:
+// ------------
+// Poti 1: Yellow
+// Poti 2: Blue
+// Poti 3: Orange
+// Poti 4: Green
+//
 // Arcade switches are connected as follows (looking straight at the NO/NC pins from the front)
 //
 //                GND 
@@ -175,12 +182,14 @@ uint8_t buttonsToPress[20];
 /* POTI SETTINGS {{{*/
 #define GAME_POTI_NUM_POTIS 4 
 #define GAME_POTI_MAP_TO_MAX 6
-const uint8_t gamePotiPins[] = { A4, A5, A6, A7 };
+
+// These are analog Pins!
+const uint8_t gamePotiPins[] = { 4, 5, 6, 7 };
 uint8_t gamePotiChallenge[] = { 0, 0, 0, 0 };
 unsigned long gamePotiTimeToSolveMsec = 5000;
 unsigned long gamePotiChallengeStartMsec;
-uint8_t gamePotiReadings[GAME_POTI_NUM_POTIS][10];
-uint8_t gamePotiReadingsIndex[GAME_POTI_NUM_POTIS] = { 0, 0, 0, 0 };
+uint8_t gamePotiReadings[GAME_POTI_NUM_POTIS];
+uint8_t gamePotiReadingsIndex = 0;
 uint8_t gamePotiCurrentValue[GAME_POTI_NUM_POTIS] = { 0, 0, 0, 0 };
 
 // 0 = Top Left
@@ -863,14 +872,17 @@ void game_poti_reset() { /*{{{*/
   if (state.next == 0) {
     // Reset pins and generate new task
     for(uint8_t i; i < GAME_POTI_NUM_POTIS; i++) {
-      pinMode(gamePotiPins[i], INPUT);
+      // Since we use pins A4-A7 as 4-7 in the config we must calculate the correct pin (18 - 21)
+      pinMode(14 + gamePotiPins[i], INPUT_PULLUP);
+
+      // Set target number
       gamePotiChallenge[i] = int(random(1, GAME_POTI_MAP_TO_MAX + 1));
+
+      // Read and set the current value
       gamePotiCurrentValue[i] = map(analogRead(gamePotiPins[i]), 0, 1023, GAME_POTI_MAP_TO_MAX, 0);
 
-      // Reset poti readings
-      for (uint8_t p = 0; p < 10; p++) {
-        gamePotiReadings[i][p] = gamePotiCurrentValue[i];
-      }
+      // Set the sum
+      gamePotiReadings[i] = gamePotiCurrentValue[i] * 10;
 
       #ifdef DEBUG
         Serial.print("game_poti_reset: Poti #");
@@ -923,24 +935,26 @@ void game_poti_detect_potis() { /*{{{*/
     Serial.print("game_poti_detect_potis: Current/Target = ");
   #endif
 
-  // Read all potis remembering the last 10 values
+  // Read all potis 10 times and remember the values
   for(uint8_t potiIndex = 0; potiIndex < GAME_POTI_NUM_POTIS; potiIndex++) {
-    gamePotiReadings[potiIndex][gamePotiReadingsIndex[potiIndex]] = map(analogRead(gamePotiPins[potiIndex]), 0, 1023, GAME_POTI_MAP_TO_MAX, 0);
+    gamePotiReadings[potiIndex] = 0;
 
-    gamePotiReadingsIndex[potiIndex]++;
-
-    if(gamePotiReadingsIndex[potiIndex] > 9) {
-      gamePotiReadingsIndex[potiIndex] = 0;
-
-      // Smoothing all values into a single one
-      for(uint8_t i = 0; i < 10; i++) {
-        gamePotiCurrentValue[potiIndex] += gamePotiReadings[potiIndex][i]; 
-      }
-      gamePotiCurrentValue[potiIndex] = gamePotiCurrentValue[potiIndex] / 10;
+    for(uint8_t readings = 0; readings < 10; readings++) {
+      gamePotiReadings[potiIndex] += map(analogRead(gamePotiPins[potiIndex]), 0, 1023, 0, GAME_POTI_MAP_TO_MAX);
     }
 
+    // Take the average
+    gamePotiCurrentValue[potiIndex] = gamePotiReadings[potiIndex] / 10; 
+
     #ifdef DEBUG
-      Serial.print(gamePotiCurrentValue[potiIndex]);
+      Serial.print("#");
+      Serial.print(potiIndex);
+      Serial.print(" (A");
+      Serial.print(gamePotiPins[potiIndex]);
+      Serial.print(")");
+      Serial.print("=");
+      //Serial.print(gamePotiCurrentValue[potiIndex]);
+      Serial.print(analogRead(gamePotiPins[potiIndex]));
       Serial.print("/");
       Serial.print(gamePotiChallenge[potiIndex]);
       Serial.print(", ");
