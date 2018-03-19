@@ -46,23 +46,28 @@ extern HardwareSerial Serial;
 // Button Out <- | - |
 // (NC)          |___|
 //
+//
 // GAMES:
 //
 // 1. Switchboard
+// --------------
 // The game will display a number which is the addition of the two ports to connect
 // eg. when 36 is shown connect D4 (Value 4) and D6 (Value 32)
 //
 // 2. Arcade Buttons
+// -----------------
 // A sequence of buttons will be displayed. Press them in this order. Thinks the classical Senso/Simon game.
 //
 // 3. Potentiometer
+// ----------------
 // Dial the potentiometers in each corner to the corresponding value
 
 /* DEBUG SETTINGS {{{ */
 // Cancel all things related to the pressure release game
 uint8_t no_pressure_release_game = 1; 
 // Force a specific game to repeat over and over
-uint8_t force_game_nr = 3;
+// Set to 0 to run normally
+uint8_t force_game_nr = 2;
 // Overwrite time to solve 
 unsigned long force_time_to_solve_msec = 999999;
 /*}}} */
@@ -705,8 +710,14 @@ void game_arcade_button_reset() { /*{{{*/
   gameArcadeButtonTimer = 1;
   gameArcadeButtonState = 1;
 
-  // Display task at hand
-  changeStateTo(31, 1);
+  // Display task
+  if (force_game_nr > 0) {
+    // Instantly change to detection
+    changeStateTo(32, 1);
+  } else {
+    // Show task
+    changeStateTo(31, 1);
+  }
 } /*}}} */
 
 // STATE: 31
@@ -784,7 +795,7 @@ void game_arcade_button_detect_pressed() { /*{{{*/
       #ifdef DEBUG
         Serial.print("game_arcade_button_detect_pressed(): Must press D");
         Serial.print(gameArcadeButtonPinsDin[buttonsToPress[gameArcadePressedSoFarIndex]]);
-        Serial.print(" as press ");
+        Serial.print(" as press #");
         Serial.print(gameArcadePressedSoFarIndex+1);
         Serial.print(" of ");
         Serial.print(gameArcadeNumberOfButtonPresses);
@@ -816,13 +827,13 @@ void game_arcade_button_detect_pressed() { /*{{{*/
     unsigned long progressLedsCount = map(gameArcadeButtonTimeToSolveTask + gameArcadeButtonTimer - millis(), 0, gameArcadeButtonTimeToSolveTask, 10, 0);
     showProgressBar(progressLedsCount, 0);
 
-    // Time over?
-    if (progressLedsCount >= 10) {
+    // Time over (only if not in debug mode via force_game_nr)?
+    if (force_game_nr == 0 && progressLedsCount >= 10) {
       changeStateNext = 33;
     }
 
-    // Change State?
-    if (changeStateNext > 0) {
+    // Change State (only if not in debug mode)?
+    if (force_game_nr == 0 && changeStateNext > 0) {
       // Turn off leds
       for(uint8_t i = 0; i < gameArcadeButtonNumberOfButtons; i++) {
         digitalWrite(gameArcadeButtonPinsLedOut[i], LOW);
@@ -835,20 +846,20 @@ void game_arcade_button_detect_pressed() { /*{{{*/
 // STATE: 31 ... 39
 void game_arcade_button_loop() { /*{{{*/
   switch(state.current) {
-    // Show all buttons one by one
     case 31:
+      // Show all buttons one by one
       game_arcade_button_show_task();
       break;
-    // Expect presses
     case 32:
+      // Expect presses
       game_arcade_button_detect_pressed();
       break;
-    // Wrong button pressed
     case 33:
+      // Wrong button pressed
       changeStateTo(100, 1);
       break;
-    // All buttons correctly pressed
     case 34:
+      // All buttons correctly pressed
       changeStateTo(101, 1);
       break;
   }
