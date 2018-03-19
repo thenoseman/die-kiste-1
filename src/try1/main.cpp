@@ -188,7 +188,7 @@ const uint8_t gamePotiPins[] = { 4, 5, 6, 7 };
 uint8_t gamePotiChallenge[] = { 0, 0, 0, 0 };
 unsigned long gamePotiTimeToSolveMsec = 5000;
 unsigned long gamePotiChallengeStartMsec;
-uint8_t gamePotiReadings[GAME_POTI_NUM_POTIS];
+unsigned long gamePotiReadings[GAME_POTI_NUM_POTIS];
 uint8_t gamePotiReadingsIndex = 0;
 uint8_t gamePotiCurrentValue[GAME_POTI_NUM_POTIS] = { 0, 0, 0, 0 };
 
@@ -236,27 +236,14 @@ int8_p matrixPicIntro2[13] PROGMEM = {0,4,48,194,12,251,237,55,195,8,1,0,0};
 /*}}}*/
 
 void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
-  // Instant switch
-  if(nextStateInMsec == 0 && state.next != nextState) {
-    state.current = nextState;
-
-    #ifdef DEBUG
-      Serial.print("changeStateTo: current = ");  
-      Serial.print(state.current);
-      Serial.println(", at msec = INSTANT");
-    #endif
-
-    return;
-  }
-
   if (state.next != nextState) {
     state.nextStateAtMsec = millis() + nextStateInMsec;
     state.next = nextState;
 
     #ifdef DEBUG
-      Serial.print("changeStateTo: next = ");  
+      Serial.print("[STATE]: next = ");  
       Serial.print(state.next);
-      Serial.print(", at msec = ");
+      Serial.print(" @msec = ");
       Serial.println(state.nextStateAtMsec);
     #endif
   }
@@ -267,8 +254,9 @@ void updateState() { /*{{{*/
     state.current = state.next;
     state.nextStateAtMsec = 0;
     state.next = 0;
+
     #ifdef DEBUG
-      Serial.print("updateState: state.current = ");
+      Serial.print("[STATE] current = ");
       Serial.println(state.current);
     #endif
   }
@@ -878,11 +866,10 @@ void game_poti_reset() { /*{{{*/
       // Set target number
       gamePotiChallenge[i] = int(random(1, GAME_POTI_MAP_TO_MAX + 1));
 
-      // Read and set the current value
-      gamePotiCurrentValue[i] = map(analogRead(gamePotiPins[i]), 0, 1023, GAME_POTI_MAP_TO_MAX, 0);
-
+      // Set the current value
       // Set the sum
-      gamePotiReadings[i] = gamePotiCurrentValue[i] * 10;
+      gamePotiCurrentValue[i] = 0;
+      gamePotiReadings[i] = 0;
 
       #ifdef DEBUG
         Serial.print("game_poti_reset: Poti #");
@@ -940,11 +927,11 @@ void game_poti_detect_potis() { /*{{{*/
     gamePotiReadings[potiIndex] = 0;
 
     for(uint8_t readings = 0; readings < 10; readings++) {
-      gamePotiReadings[potiIndex] += map(analogRead(gamePotiPins[potiIndex]), 0, 1023, 0, GAME_POTI_MAP_TO_MAX);
+      gamePotiReadings[potiIndex] += analogRead(gamePotiPins[potiIndex]);
     }
 
     // Take the average
-    gamePotiCurrentValue[potiIndex] = gamePotiReadings[potiIndex] / 10; 
+    gamePotiCurrentValue[potiIndex] = map(gamePotiReadings[potiIndex]/10, 0, 1023, 1, GAME_POTI_MAP_TO_MAX + 1);
 
     #ifdef DEBUG
       Serial.print("#");
@@ -953,8 +940,7 @@ void game_poti_detect_potis() { /*{{{*/
       Serial.print(gamePotiPins[potiIndex]);
       Serial.print(")");
       Serial.print("=");
-      //Serial.print(gamePotiCurrentValue[potiIndex]);
-      Serial.print(analogRead(gamePotiPins[potiIndex]));
+      Serial.print(gamePotiCurrentValue[potiIndex]);
       Serial.print("/");
       Serial.print(gamePotiChallenge[potiIndex]);
       Serial.print(", ");
