@@ -42,18 +42,18 @@ void setup()
 void loop()
 {
   for (uint8_t i=0; i < 3; i++) {
-
     Serial.print("D");
     Serial.print(i + 8);
     Serial.print(" = ");
     Serial.println(digitalRead(i + 8));
 
-    if (digitalRead(i + 8) == LOW) {
+    if (digitalRead(i + 8) == HIGH) {
       digitalWrite(i + 11, HIGH);
     } else {
       digitalWrite(i + 11, LOW);
     }
   }
+  Serial.println("---");
 
   delay(250);
 }
