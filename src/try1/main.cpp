@@ -12,8 +12,8 @@ extern HardwareSerial Serial;
 //                      | [ ]3.3V            MOSI/D11[ ]~| -> arcadeBtnsLeds[0]
 //                      | [ ]V.ref     ___     SS/D10[ ]~| <- arcadeBtnsDin[2]
 // MATRIX_LED_PIN    <- | [ ]A0       / N \        D9[ ]~| <- arcadeBtnsDin[1]
-// PRESSURE_BTN_PIN0 -> | [ ]A1      /  A  \       D8[ ] | <- arcadeBtnsDin[0]
-// PRESSURE_BTN_PIN1 -> | [ ]A2      \  N  /       D7[ ] | <- switchboardPins[5] => 64 (ONE COUNTERCLOCKWISE OF TOP)
+// PRESSURE_BTN_PIN_L-> | [ ]A1      /  A  \       D8[ ] | <- arcadeBtnsDin[0]
+// PRESSURE_BTN_PIN_R-> | [ ]A2      \  N  /       D7[ ] | <- switchboardPins[5] => 64 (ONE COUNTERCLOCKWISE OF TOP)
 //                      | [ ]A3       \_0_/        D6[ ]~| <- switchboardPins[4] => 32
 // LT  potiPins[0]   -> | [ ]A4/SDA                D5[ ]~| <- switchboardPins[3] => 16
 // RT  potiPins[1]   -> | [ ]A5/SCL                D4[ ] | <- switchboardPins[2] => 8
@@ -46,6 +46,8 @@ extern HardwareSerial Serial;
 // Button Out <- | - |
 // (NC)          |___|
 //
+// PRESSURE_BTN_PIN_L = Left button
+// PRESSURE_BTN_PIN_R = Right Button
 //
 // GAMES:
 //
@@ -67,7 +69,7 @@ extern HardwareSerial Serial;
 uint8_t no_pressure_release_game = 1; 
 // Force a specific game to repeat over and over
 // Set to 0 to run normally
-uint8_t force_game_nr = 2;
+uint8_t force_game_nr = 3;
 // Overwrite time to solve 
 unsigned long force_time_to_solve_msec = 999999;
 /*}}} */
@@ -81,7 +83,7 @@ typedef struct State {
   unsigned int lifes;
 } State;
 
-State state = { .current = 150, .next = 0, .nextStateAtMsec = 0, .score = 0, .lifes = 3};
+State state = { .current = 150, .next = 150, .nextStateAtMsec = 1, .score = 0, .lifes = 3};
 
 // Currently active game
 int activeGame = 0;
@@ -451,12 +453,8 @@ void game_setup() {/*{{{*/
   state.lifes = 3;
   state.score = 0;
 
-  if (force_game_nr > 0) {
-    state.current = 1;
-  } else {
-    // Start at "press any key"
-    state.current = 150;
-  }
+  // Start at "press any key"
+  state.current = 150;
 } /*}}}*/
 
 void game_over_or_next_game() { /*{{{*/
@@ -495,7 +493,12 @@ void press_any_button_to_start_game() { /*{{{*/
 
   // Read arcade buttons
   for(i=0; i < gameArcadeButtonNumberOfButtons; i++) {
-    if(digitalRead(gameArcadeButtonPinsDin[i] == HIGH)) {
+    if (digitalRead(gameArcadeButtonPinsDin[i])) {
+      #ifdef DEBUG
+        Serial.print("[press any key] Arcade button ");
+        Serial.print(i);
+        Serial.println(" pressed!");
+      #endif
       pressed = 1;
       break;
     }
@@ -503,7 +506,12 @@ void press_any_button_to_start_game() { /*{{{*/
 
   // read pressure buttons
   for(i=0; i < 2; i++) {
-    if(digitalRead(pressureReleasePinIn[i] == HIGH)) {
+    if (digitalRead(pressureReleasePinIn[i])) {
+      #ifdef DEBUG
+        Serial.print("[press any key] pressure button ");
+        Serial.print(i);
+        Serial.println(" pressed!");
+      #endif
       pressed = 1;
       break;
     }
@@ -598,7 +606,11 @@ void game_switchboard_reset() { /*{{{*/
 
   // Set time the player has to solve the cahllenge in msec
   // TODO: dynamic:
-  switchboard.timeToSolveMillis = 10000;
+  if (force_time_to_solve_msec > 0 && force_game_nr > 0) {
+    switchboard.timeToSolveMillis = force_time_to_solve_msec;
+  } else {
+    switchboard.timeToSolveMillis = 10000;
+  }
 
   // Start game loop
   changeStateTo(21, 1);
@@ -1092,7 +1104,7 @@ void game_master_loop() { /*{{{*/
     case 150:
       // Box intro 1
       if (state.next == 0) {
-        matrixSetByArray(matrixPicIntro1, 0, 0, CRGB::Red);
+        matrixSetByArray(matrixPicIntro1, 0, 0, CRGB::Green);
         changeStateTo(151, 1500);
       }
       press_any_button_to_start_game();
@@ -1100,7 +1112,7 @@ void game_master_loop() { /*{{{*/
     case 151:
       // Box intro 2
       if (state.next == 0) {
-        matrixSetByArray(matrixPicIntro2, 0, 0, CRGB::Red);
+        matrixSetByArray(matrixPicIntro2, 0, 0, CRGB::Green);
         changeStateTo(150, 1500);
       }
       press_any_button_to_start_game();
@@ -1196,7 +1208,8 @@ void loop() /*{{{*/
   // Reset all LEDs
   if (ledsModified == 1) {
     ledsModified = 0;
-    fill_solid(leds, matrixNumLeds, CRGB::Black);
+    FastLED.clear();
+    //fill_solid(leds, matrixNumLeds, CRGB::Black);
   }
 
   // Run pressure release loop
@@ -1205,7 +1218,6 @@ void loop() /*{{{*/
  
   // Run master loop
   game_master_loop();
-
 
   // If leds have been modified, show them
   if (ledsModified > 0) {
