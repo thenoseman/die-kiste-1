@@ -66,12 +66,14 @@ extern HardwareSerial Serial;
 
 /* DEBUG SETTINGS {{{ */
 // Cancel all things related to the pressure release game
-uint8_t no_pressure_release_game = 1; 
+// Set to 1 to ignore pressure release game
+// Set to 255 to ONLY run the pressure release game
+uint8_t pressure_release_game_flag = 0;
 // Force a specific game to repeat over and over
 // Set to 0 to run normally
-uint8_t force_game_nr = 3;
+uint8_t force_game_nr = 0;
 // Overwrite time to solve 
-unsigned long force_time_to_solve_msec = 999999;
+unsigned long force_time_to_solve_msec = 0;
 /*}}} */
 
 /* GLOBAL GAME STATE {{{*/
@@ -113,7 +115,7 @@ const int matrixDinPin = A0;
 // 100 Leds for display (10x10) and 9 leds for pressure_release_game
 const int matrixNumLeds = 100;
 const int numLeds = matrixNumLeds + pressureReleaseNumLeds;
-const int matrixLedBrightness = 50;
+const int matrixLedBrightness = 25;
 
 // 0 = no LED update
 // 1 = full clear + update
@@ -168,8 +170,8 @@ const CRGB gameArcadeButtonPinsColors[] = { CRGB::Red, CRGB::Yellow, CRGB::Green
 unsigned long gameArcadeButtonTimer = 0;
 
 // How long to display a button and how long to pause in msec
-unsigned long gameArcadeButtonShowColorMsec = 2000;
-unsigned long gameArcadeButtonShowColorPauseMsec = 500;
+unsigned long gameArcadeButtonShowColorMsec = 1000;
+unsigned long gameArcadeButtonShowColorPauseMsec = 300;
 unsigned long gameArcadeButtonTimeToSolveTask = 4000;
 
 uint8_t gameArcadeButtonState = 0;
@@ -340,6 +342,7 @@ void pressure_release_draw_state() { /*{{{*/
 
   leds[currentLit] = CRGB::Red;
   leds[middle] = CRGB::Green;
+  ledsModified = 2;
 } /*}}} */
 
 void pressure_release_button_handling() { /*{{{*/
@@ -378,15 +381,15 @@ void pressure_release_button_handling() { /*{{{*/
 
   #ifdef DEBUG
     if (pressureReleaseCurrentButton == 255) {
-      Serial.print("pressure_release_button_handling: pressureReleaseCurrentLevel = ");
-      Serial.println(pressureReleaseCurrentLevel);
+      //Serial.print("pressure_release_button_handling: pressureReleaseCurrentLevel = ");
+      //Serial.println(pressureReleaseCurrentLevel);
     }
   #endif
 } /*}}} */
 
 void pressure_release_clear(uint8_t drawMiddle) { /*{{{*/
 
-  if(no_pressure_release_game == 1) {
+  if(pressure_release_game_flag == 1) {
     return;
   }
 
@@ -405,11 +408,9 @@ void pressure_release_clear(uint8_t drawMiddle) { /*{{{*/
 
 void pressure_release_setup() { /*{{{*/
   // Cancel if not wanted
-  if (no_pressure_release_game == 1) {
+  if (pressure_release_game_flag == 1) {
     return;
   }
-
-  pressure_release_clear(1);
 
   // 0000x0000
   // Pressure Release values from -4 to 4
@@ -425,7 +426,7 @@ void pressure_release_setup() { /*{{{*/
 
   // When does a new step occur?
   pressureReleaseFirstStepMsec = 2000;
-  pressureReleaseNextStepMsec = 4000;
+  pressureReleaseNextStepMsec = 6000;
 
   // Not running
   pressureReleaseIsTicking = 0;
@@ -493,7 +494,9 @@ void press_any_button_to_start_game() { /*{{{*/
 
   // Read arcade buttons
   for(i=0; i < gameArcadeButtonNumberOfButtons; i++) {
-    if (digitalRead(gameArcadeButtonPinsDin[i])) {
+    pinMode(gameArcadeButtonPinsDin[i], INPUT_PULLUP);
+
+    if (digitalRead(gameArcadeButtonPinsDin[i]) == HIGH) {
       #ifdef DEBUG
         Serial.print("[press any key] Arcade button ");
         Serial.print(i);
@@ -506,7 +509,9 @@ void press_any_button_to_start_game() { /*{{{*/
 
   // read pressure buttons
   for(i=0; i < 2; i++) {
-    if (digitalRead(pressureReleasePinIn[i])) {
+    pinMode(pressureReleasePinIn[i], INPUT_PULLUP);
+
+    if (digitalRead(pressureReleasePinIn[i]) == LOW) {
       #ifdef DEBUG
         Serial.print("[press any key] pressure button ");
         Serial.print(i);
@@ -630,7 +635,6 @@ void game_switchboard_loop() { /*{{{*/
     digitalWrite(gameSwitchboardPins[outputPinIndex], LOW);
 
     for(int inputPinIndex = outputPinIndex+1; inputPinIndex < gameSwitchboardPinNum && gameSwitchboardPinActive1 == 0; inputPinIndex++) {
-
       // Don't switch to INPUT for the pin that is currently OUTPUT
       if(inputPinIndex == outputPinIndex) {
         continue;
@@ -678,6 +682,9 @@ void game_switchboard_loop() { /*{{{*/
 
   // Test if time is up only if not correct connection found
   if (correctFound == 0) {
+    gameSwitchboardPinActive1 = 0;
+    gameSwitchboardPinActive2 = 0;
+
     if(millis() - switchboard.startMillis <= switchboard.timeToSolveMillis) {
       unsigned long progress = switchboard.timeToSolveMillis + switchboard.startMillis - millis();
       unsigned long progressLeds = map(progress, 0, switchboard.timeToSolveMillis, 10, 0);
@@ -709,7 +716,7 @@ void game_arcade_button_reset() { /*{{{*/
   for(uint8_t i = 0; i < gameArcadeNumberOfButtonPresses; i++) {
     buttonsToPress[i] = random(0, gameArcadeButtonNumberOfButtons);
     #ifdef DEBUG
-      Serial.print("game_arcade_button_reset: must press button #");
+      Serial.print("game_arcade_button_reset: Must press button #");
       Serial.print(i);
       Serial.print(" = ");
       Serial.println(buttonsToPress[i]);
@@ -722,14 +729,8 @@ void game_arcade_button_reset() { /*{{{*/
   gameArcadeButtonTimer = 1;
   gameArcadeButtonState = 1;
 
-  // Display task
-  if (force_game_nr > 0) {
-    // Instantly change to detection
-    changeStateTo(32, 1);
-  } else {
-    // Show task
-    changeStateTo(31, 1);
-  }
+  // Show task
+  changeStateTo(31, 1);
 } /*}}} */
 
 // STATE: 31
@@ -839,13 +840,13 @@ void game_arcade_button_detect_pressed() { /*{{{*/
     unsigned long progressLedsCount = map(gameArcadeButtonTimeToSolveTask + gameArcadeButtonTimer - millis(), 0, gameArcadeButtonTimeToSolveTask, 10, 0);
     showProgressBar(progressLedsCount, 0);
 
-    // Time over (only if not in debug mode via force_game_nr)?
-    if (force_game_nr == 0 && progressLedsCount >= 10) {
+    // Time over
+    if (progressLedsCount >= 10) {
       changeStateNext = 33;
     }
 
-    // Change State (only if not in debug mode)?
-    if (force_game_nr == 0 && changeStateNext > 0) {
+    // Change State
+    if (changeStateNext > 0) {
       // Turn off leds
       for(uint8_t i = 0; i < gameArcadeButtonNumberOfButtons; i++) {
         digitalWrite(gameArcadeButtonPinsLedOut[i], LOW);
@@ -1015,7 +1016,9 @@ void game_master_loop() { /*{{{*/
       break;
     case 10:
       // Choose a random game
-      game_choose();
+      if (pressure_release_game_flag < 255) {
+        game_choose();
+      }
       pressureReleaseIsTicking = 1;
       break;
     case 20:
@@ -1103,6 +1106,7 @@ void game_master_loop() { /*{{{*/
       break;
     case 150:
       // Box intro 1
+      pressureReleaseIsTicking = 0;
       if (state.next == 0) {
         matrixSetByArray(matrixPicIntro1, 0, 0, CRGB::Green);
         changeStateTo(151, 1500);
@@ -1111,6 +1115,7 @@ void game_master_loop() { /*{{{*/
       break;
     case 151:
       // Box intro 2
+      pressureReleaseIsTicking = 0;
       if (state.next == 0) {
         matrixSetByArray(matrixPicIntro2, 0, 0, CRGB::Green);
         changeStateTo(150, 1500);
@@ -1128,7 +1133,7 @@ void game_master_loop() { /*{{{*/
 
 // Pressure Release Main loop
 void pressure_release_loop() { /*{{{*/
-  if (no_pressure_release_game == 1) {
+  if (pressure_release_game_flag == 1) {
     return;
   }
 
@@ -1136,7 +1141,6 @@ void pressure_release_loop() { /*{{{*/
     #ifdef DEBUG
       Serial.println("pressure_release_loop: Not ticking!");
     #endif
-
     return;
   }
 
@@ -1208,12 +1212,12 @@ void loop() /*{{{*/
   // Reset all LEDs
   if (ledsModified == 1) {
     ledsModified = 0;
-    FastLED.clear();
-    //fill_solid(leds, matrixNumLeds, CRGB::Black);
+    for(uint8_t i=0; i < matrixNumLeds; i++) {
+      leds[i] = CRGB::Black;
+    }
   }
 
   // Run pressure release loop
-  pressureReleaseIsTicking = 1;
   pressure_release_loop();
  
   // Run master loop

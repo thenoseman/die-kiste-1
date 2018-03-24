@@ -26,19 +26,49 @@
 
 const byte alphaElementSize = 13;
 const byte matrixDinPin = A0;
-const byte numLeds = 100;
-const byte matrixLedBrightness = 20;
+const byte numLeds = 100 + 9;
+const byte matrixLedBrightness = 25;
 CRGB leds[numLeds];
+uint8_t c = 1;
 
 void setup()
 {
   FastLED.addLeds<NEOPIXEL, matrixDinPin>(leds, numLeds);
   FastLED.setBrightness(matrixLedBrightness);
   FastLED.clear();
+  FastLED.show();
+}
+
+void loop_one_by_one() {
+  leds[c] = CRGB::White;
+
+  if (c < numLeds) {
+    c++;
+  }
+  FastLED.show();
+  delay(150);
+}
+
+void loop_all() {
+  CHSV c = CHSV(random8(),255,255);
+  for(uint8_t i=0; i < numLeds; i++) {
+    leds[i] = c;
+  }
+  FastLED.show();
+  delay(2000);
+}
+
+void loop_rainbow() {
+  fill_rainbow( leds, numLeds, 0, 7);
+  if (c == 1) {
+    FastLED.show();
+    c = 2;
+  }
 }
 
 void loop()
 {
-  fill_solid(leds, numLeds, CRGB::Green);
-  FastLED.show();
+  //loop_one_by_one();
+  loop_all();
+  //loop_rainbow();
 }

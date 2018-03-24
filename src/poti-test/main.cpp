@@ -42,17 +42,33 @@ void setup()
   pinMode(A7, INPUT_PULLUP);
 }
 
+void printnr(String pin, unsigned int reading) {
+  Serial.print(pin);
+  Serial.print("=");
+
+  if(reading < 1000) {
+    Serial.print("0");
+  }
+
+  if(reading < 100) {
+    Serial.print("0");
+  }
+
+  if(reading < 10) {
+    Serial.print("0");
+  }
+  
+  Serial.print(reading);
+  Serial.print("; ");
+}
+
 void loop()
 {
-  Serial.print("A4: ");
-  Serial.print(analogRead(4));
-  Serial.print("; A5: ");
-  Serial.print(analogRead(5));
-  Serial.print("; A6: ");
-  Serial.print(analogRead(6));
-  Serial.print("; A7: ");
-  Serial.print(analogRead(7));
+  printnr("A4", analogRead(4));
+  printnr("A5", analogRead(5));
+  printnr("A6", analogRead(6));
+  printnr("A7", analogRead(7));
+
   Serial.println("");
-  
   delay(250);
 }
