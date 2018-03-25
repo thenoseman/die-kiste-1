@@ -14,7 +14,7 @@ extern HardwareSerial Serial;
 // MATRIX_LED_PIN    <- | [ ]A0       / N \        D9[ ]~| <- arcadeBtnsDin[1]
 // PRESSURE_BTN_PIN_L-> | [ ]A1      /  A  \       D8[ ] | <- arcadeBtnsDin[0]
 // PRESSURE_BTN_PIN_R-> | [ ]A2      \  N  /       D7[ ] | <- switchboardPins[5] => 64 (ONE COUNTERCLOCKWISE OF TOP)
-//                      | [ ]A3       \_0_/        D6[ ]~| <- switchboardPins[4] => 32
+// PR_LED_PIN        <- | [ ]A3       \_0_/        D6[ ]~| <- switchboardPins[4] => 32
 // LT  potiPins[0]   -> | [ ]A4/SDA                D5[ ]~| <- switchboardPins[3] => 16
 // RT  potiPins[1]   -> | [ ]A5/SCL                D4[ ] | <- switchboardPins[2] => 8
 // LB  potiPins[2]   -> | [ ]A6 (noDIn)       INT1/D3[ ]~| <- switchboardPins[1] => 4 (FIRST CLOCKWISE)
@@ -30,12 +30,12 @@ extern HardwareSerial Serial;
 //
 // Potis read 1 full counterclockwise and GAME_POTI_MAP_TO_MAX full clockwise
 //
-// Poti Cables:
-// ------------
-// Poti 1: Yellow
-// Poti 2: Blue
-// Poti 3: Orange
-// Poti 4: Green
+// Poti Cables / Scale color:
+// --------------------------
+// Poti 1: Yellow / Yellow
+// Poti 2: Blue   / Red
+// Poti 3: Orange / Green
+// Poti 4: Green  / Blue
 //
 // Arcade switches are connected as follows (looking straight at the NO/NC pins from the front)
 //
@@ -68,11 +68,14 @@ extern HardwareSerial Serial;
 // Cancel all things related to the pressure release game
 // Set to 1 to ignore pressure release game
 // Set to 255 to ONLY run the pressure release game
-uint8_t pressure_release_game_flag = 0;
+uint8_t pressure_release_game_flag = 1;
+
 // Force a specific game to repeat over and over
 // Set to 0 to run normally
 uint8_t force_game_nr = 0;
-// Overwrite time to solve 
+
+// Overwrite time to solve
+// Set to 0 to use normal times
 unsigned long force_time_to_solve_msec = 0;
 /*}}} */
 
@@ -112,18 +115,17 @@ uint8_t pressureReleaseCurrentButton = 255;
 /* MATRIX SETTINGS {{{*/
 const int matrixDinPin = A0;
 
-// 100 Leds for display (10x10) and 9 leds for pressure_release_game
+// 100 Leds for display (10x10)
 const int matrixNumLeds = 100;
-const int numLeds = matrixNumLeds + pressureReleaseNumLeds;
-const int matrixLedBrightness = 25;
+const int matrixLedBrightness = 20;
 
 // 0 = no LED update
 // 1 = full clear + update
 // 2 = no clear, just update
-byte ledsModified = 0;
+byte matrixLedsModified = 0;
 
 // LED array
-CRGB leds[numLeds];
+CRGB matrixLeds[matrixNumLeds];
 /*}}}*/
 
 /* SWITCHBOARD SETTINGS {{{*/
@@ -175,6 +177,7 @@ unsigned long gameArcadeButtonShowColorPauseMsec = 300;
 unsigned long gameArcadeButtonTimeToSolveTask = 4000;
 
 uint8_t gameArcadeButtonState = 0;
+uint8_t gameArcadeLongerChainEveryScore = 5;
 
 // Number of presses needed to solve this stage
 uint8_t gameArcadeNumberOfButtonPresses = 3;
@@ -192,12 +195,14 @@ uint8_t buttonsToPress[20];
 #define GAME_POTI_NUM_POTIS 4 
 #define GAME_POTI_MAP_TO_MAX 6
 
-// These are analog Pins!
+// These are analog pins!
+// From Left/Top to Bottom/Right
 const uint8_t gamePotiPins[] = { 4, 5, 6, 7 };
 uint8_t gamePotiChallenge[] = { 0, 0, 0, 0 };
+CRGB gamePotiColors[] = { CRGB::Yellow, CRGB::Red, CRGB::Green, CRGB::Blue };
 unsigned long gamePotiTimeToSolveMsec = 5000;
 unsigned long gamePotiChallengeStartMsec;
-unsigned long gamePotiReadings[GAME_POTI_NUM_POTIS];
+uint16_t gamePotiReadings[GAME_POTI_NUM_POTIS];
 uint8_t gamePotiReadingsIndex = 0;
 uint8_t gamePotiCurrentValue[GAME_POTI_NUM_POTIS] = { 0, 0, 0, 0 };
 
@@ -280,8 +285,8 @@ void matrixSetByArray(int8_p picture[], int startColumn, int startRow, CRGB colo
         int col = ((pByte * 8 + bit) + (10 * startColumn)) / 10; 
         int pos = (pByte * 8 + bit) + (10 * startColumn) + startRow;
         if (col > -1 && col < 10) {
-          ledsModified = partialUpdate == 1 ? 2 : 1;
-          leds[pos] = color;
+          matrixLedsModified = partialUpdate == 1 ? 2 : 1;
+          matrixLeds[pos] = color;
         }
       }
     }
@@ -307,17 +312,17 @@ void showProgressBar(unsigned long progress, uint8_t horizontal) { /*{{{*/
     // progress is 0 -> 10
     for (uint8_t pLedI = 1; pLedI <= progress; pLedI++) {
       if (horizontal == 0) {
-        leds[(pLedI - 1) * 10] = CRGB::Red;
+        matrixLeds[(pLedI - 1) * 10] = CRGB::Red;
       } else {
-        leds[90 + pLedI - 1] = CRGB::Red;
+        matrixLeds[90 + pLedI - 1] = CRGB::Red;
       }
     }
   }
-  ledsModified = 2;
+  matrixLedsModified = 2;
 } /*}}} */
 
 void clearMatrix() { /*{{{*/
-  fill_solid(leds, matrixNumLeds, CRGB::Black);
+  fill_solid(matrixLeds, matrixNumLeds, CRGB::Black);
   FastLED.show();
 } /*}}} */
 
@@ -326,7 +331,7 @@ void game_arcade_button_display_button(int buttonIndex, CRGB color) { /*{{{*/
 } /*}}} */
 
 void matrix_setup() /*{{{*/{
-  FastLED.addLeds<NEOPIXEL, matrixDinPin>(leds, numLeds);
+  FastLED.addLeds<NEOPIXEL, matrixDinPin>(matrixLeds, matrixNumLeds);
   FastLED.setBrightness(matrixLedBrightness);
 } /*}}}*/
 
@@ -337,12 +342,12 @@ void pressure_release_draw_state() { /*{{{*/
   // Display current level and middle point
   for(uint8_t i=0; i < pressureReleaseNumLeds; i++) {
     // Reset
-    leds[matrixNumLeds + i] = CRGB::Black;
+    matrixLeds[matrixNumLeds + i] = CRGB::Black;
   }
 
-  leds[currentLit] = CRGB::Red;
-  leds[middle] = CRGB::Green;
-  ledsModified = 2;
+  matrixLeds[currentLit] = CRGB::Red;
+  matrixLeds[middle] = CRGB::Green;
+  matrixLedsModified = 2;
 } /*}}} */
 
 void pressure_release_button_handling() { /*{{{*/
@@ -395,15 +400,15 @@ void pressure_release_clear(uint8_t drawMiddle) { /*{{{*/
 
   // Reset LEDs
   for(uint8_t i=0; i < pressureReleaseNumLeds; i++) {
-    leds[i + matrixNumLeds] = CRGB::Black;
+    matrixLeds[i + matrixNumLeds] = CRGB::Black;
   }
 
   // Light the middle pressure light
   if (drawMiddle == 1) {
-    leds[matrixNumLeds + (pressureReleaseNumLeds / 2)] = CRGB::Green;
+    matrixLeds[matrixNumLeds + (pressureReleaseNumLeds / 2)] = CRGB::Green;
   }
 
-  ledsModified = 2;
+  matrixLedsModified = 2;
 } /*}}} */
 
 void pressure_release_setup() { /*{{{*/
@@ -710,7 +715,7 @@ void game_arcade_button_reset() { /*{{{*/
   gameArcadePrevPressedButton = 255;
 
   // How many presses necessary?
-  gameArcadeNumberOfButtonPresses = 3 + int((state.score / 10));
+  gameArcadeNumberOfButtonPresses = 3 + int((state.score / gameArcadeLongerChainEveryScore));
 
   // Choose random buttons for every slot
   for(uint8_t i = 0; i < gameArcadeNumberOfButtonPresses; i++) {
@@ -773,7 +778,7 @@ void game_arcade_button_show_task() { /*{{{*/
       changeStateTo(32, gameArcadeButtonShowColorMsec);
     }
 
-    ledsModified = 1;
+    matrixLedsModified = 1;
   }
 
 } /*}}} */
@@ -931,8 +936,8 @@ void game_poti_show_challenge() { /*{{{*/
        Serial.println(gamePotiHintStartRow[i]);
       #endif
 
-      matrixSetByIndex(gamePotiChallenge[i], gamePotiHintStartColumn[i], gamePotiHintStartRow[i], CHSV(random8(),255,255));
-      ledsModified = 2;
+      matrixSetByIndex(gamePotiChallenge[i], gamePotiHintStartColumn[i], gamePotiHintStartRow[i], gamePotiColors[i]);
+      matrixLedsModified = 2;
     }
 
     gamePotiChallengeStartMsec = millis();
@@ -956,6 +961,7 @@ void game_poti_detect_potis() { /*{{{*/
 
     // Take the average
     gamePotiCurrentValue[potiIndex] = map(gamePotiReadings[potiIndex]/10, 0, 1023, 1, GAME_POTI_MAP_TO_MAX + 1);
+    //gamePotiCurrentValue[potiIndex] = map(gamePotiReadings[potiIndex]/10, 65, 962, 1, GAME_POTI_MAP_TO_MAX + 1);
 
     #ifdef DEBUG
       Serial.print("#");
@@ -967,7 +973,9 @@ void game_poti_detect_potis() { /*{{{*/
       Serial.print(gamePotiCurrentValue[potiIndex]);
       Serial.print("/");
       Serial.print(gamePotiChallenge[potiIndex]);
-      Serial.print(", ");
+      Serial.print(" (Abs: ");
+      Serial.print(analogRead(gamePotiPins[potiIndex]));
+      Serial.print("), ");
     #endif
   }
 
@@ -1189,7 +1197,7 @@ void pressure_release_loop() { /*{{{*/
 
     // Set new timer
     pressureReleaseTimerMsec = millis();
-    ledsModified = 2;
+    matrixLedsModified = 2;
   }
 } /*}}} */
 
@@ -1210,10 +1218,10 @@ void loop() /*{{{*/
   updateState();
 
   // Reset all LEDs
-  if (ledsModified == 1) {
-    ledsModified = 0;
+  if (matrixLedsModified == 1) {
+    matrixLedsModified = 0;
     for(uint8_t i=0; i < matrixNumLeds; i++) {
-      leds[i] = CRGB::Black;
+      matrixLeds[i] = CRGB::Black;
     }
   }
 
@@ -1224,7 +1232,7 @@ void loop() /*{{{*/
   game_master_loop();
 
   // If leds have been modified, show them
-  if (ledsModified > 0) {
+  if (matrixLedsModified > 0) {
     FastLED.show();
   }
 } /*}}}*/
