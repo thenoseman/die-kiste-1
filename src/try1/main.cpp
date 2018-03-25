@@ -5,7 +5,7 @@
 
 extern HardwareSerial Serial;
 
-//                                  +-----+
+//                                   +-----+
 //                      +------------| USB |-------------+
 //                      |            +-----+             |
 // arcadeBtnsLeds[2] <- | [ ]D13/SCK/noDin   MISO/D12[ ] | -> arcadeBtnsLeds[1]
