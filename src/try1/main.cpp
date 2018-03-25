@@ -63,12 +63,16 @@ extern HardwareSerial Serial;
 // 3. Potentiometer
 // ----------------
 // Dial the potentiometers in each corner to the corresponding value
+//
+// TODOS:
+// - Set difficulty via poti 0
+// - Make PR game leds set separatly from .show() (see https://github.com/FastLED/FastLED/wiki/Multiple-Controller-Examples#managing-your-own-output)
 
 /* DEBUG SETTINGS {{{ */
 // Cancel all things related to the pressure release game
 // Set to 1 to ignore pressure release game
 // Set to 255 to ONLY run the pressure release game
-uint8_t pressure_release_game_flag = 1;
+uint8_t pressure_release_game_flag = 0;
 
 // Force a specific game to repeat over and over
 // Set to 0 to run normally
@@ -86,9 +90,10 @@ typedef struct State {
   unsigned long nextStateAtMsec;
   unsigned int score;
   unsigned int lifes;
+  unsigned int difficulty;
 } State;
 
-State state = { .current = 150, .next = 150, .nextStateAtMsec = 1, .score = 0, .lifes = 3};
+State state = { .current = 150, .next = 150, .nextStateAtMsec = 1, .score = 0, .lifes = 3, .difficulty = 0};
 
 // Currently active game
 int activeGame = 0;
@@ -109,7 +114,15 @@ unsigned long pressureReleaseTimerMsec;
 unsigned long pressureReleaseNextStepMsec;
 unsigned long pressureReleaseFirstStepMsec;
 const uint8_t pressureReleasePinIn[] = { A1, A2 };
+const uint8_t pressureReleaseLedPin = A3;
 uint8_t pressureReleaseCurrentButton = 255;
+const int pressureReleaseLedBrightness = 20;
+#ifdef DEBUG
+  uint8_t pressureReleaseDebugTicker = 0;
+#endif
+
+// Pressure Release LEDs
+CRGB pressureReleaseLeds[pressureReleaseNumLeds];
 /*}}}*/
 
 /* MATRIX SETTINGS {{{*/
@@ -173,8 +186,8 @@ unsigned long gameArcadeButtonTimer = 0;
 
 // How long to display a button and how long to pause in msec
 unsigned long gameArcadeButtonShowColorMsec = 1000;
-unsigned long gameArcadeButtonShowColorPauseMsec = 300;
-unsigned long gameArcadeButtonTimeToSolveTask = 4000;
+unsigned long gameArcadeButtonShowColorPauseMsec = 200;
+unsigned long gameArcadeButtonTimeToSolveTask = 5000;
 
 uint8_t gameArcadeButtonState = 0;
 uint8_t gameArcadeLongerChainEveryScore = 5;
@@ -245,8 +258,9 @@ int8_p matrixPicPoti1[13] PROGMEM = {252,24,54,112,128,49,198,24,227,204,182,241
 int8_p matrixPicPoti2[13] PROGMEM = {252,216,54,115,140,49,198,24,224,192,134,241,3};
 int8_p matrixPicPoti3[13] PROGMEM = {252,24,54,124,184,113,198,24,224,192,134,241,3};
 int8_p matrixPicPoti4[13] PROGMEM = {252,24,54,112,128,49,198,25,238,240,134,241,3};
-int8_p matrixPicIntro1[13] PROGMEM = {0,4,112,68,25,245,215,95,198,17,1,0,0};
-int8_p matrixPicIntro2[13] PROGMEM = {0,4,48,194,12,251,237,55,195,8,1,0,0};
+int8_p matrixPicIntro1[13] PROGMEM = {1,4,112,64,1,69,148,81,255,253,97,4,1}; //{0,4,112,68,25,245,215,95,198,17,1,0,0};
+int8_p matrixPicIntro2[13] PROGMEM = {1,4,48,192,0,35,204,176,223,126,49,132,0}; //{0,4,48,194,12,251,237,55,195,8,1,0,0};
+int8_p matrixPicArrowDown[13] PROGMEM = {0,32,192,128,3,255,255,239,0,3,8,0,0};
 /*}}}*/
 
 void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
@@ -327,27 +341,24 @@ void clearMatrix() { /*{{{*/
 } /*}}} */
 
 void game_arcade_button_display_button(int buttonIndex, CRGB color) { /*{{{*/
-  matrixSetByArray(matrixPicButton, gameArcadeButtonStartColumnPos[buttonIndex], gameArcadeButtonStartRowPos[buttonIndex], color); 
+  // Choose a random position
+  uint8_t r = random(0, 3);
+  matrixSetByArray(matrixPicButton, gameArcadeButtonStartColumnPos[r], gameArcadeButtonStartRowPos[r], color); 
 } /*}}} */
 
 void matrix_setup() /*{{{*/{
   FastLED.addLeds<NEOPIXEL, matrixDinPin>(matrixLeds, matrixNumLeds);
-  FastLED.setBrightness(matrixLedBrightness);
 } /*}}}*/
 
 void pressure_release_draw_state() { /*{{{*/
-  uint8_t currentLit = matrixNumLeds + pressureReleaseCurrentLevel + (pressureReleaseNumLeds/2);
-  uint8_t middle = matrixNumLeds + (pressureReleaseNumLeds/2);
+  uint8_t currentLit = pressureReleaseCurrentLevel + (pressureReleaseNumLeds/2);
 
-  // Display current level and middle point
+  // Display current level
   for(uint8_t i=0; i < pressureReleaseNumLeds; i++) {
     // Reset
-    matrixLeds[matrixNumLeds + i] = CRGB::Black;
+    pressureReleaseLeds[i] = CRGB::Black;
   }
-
-  matrixLeds[currentLit] = CRGB::Red;
-  matrixLeds[middle] = CRGB::Green;
-  matrixLedsModified = 2;
+  pressureReleaseLeds[currentLit] = CRGB::Red;
 } /*}}} */
 
 void pressure_release_button_handling() { /*{{{*/
@@ -392,23 +403,8 @@ void pressure_release_button_handling() { /*{{{*/
   #endif
 } /*}}} */
 
-void pressure_release_clear(uint8_t drawMiddle) { /*{{{*/
-
-  if(pressure_release_game_flag == 1) {
-    return;
-  }
-
-  // Reset LEDs
-  for(uint8_t i=0; i < pressureReleaseNumLeds; i++) {
-    matrixLeds[i + matrixNumLeds] = CRGB::Black;
-  }
-
-  // Light the middle pressure light
-  if (drawMiddle == 1) {
-    matrixLeds[matrixNumLeds + (pressureReleaseNumLeds / 2)] = CRGB::Green;
-  }
-
-  matrixLedsModified = 2;
+void pressure_release_led_setup() { /*{{{*/
+  FastLED.addLeds<NEOPIXEL, pressureReleaseLedPin>(pressureReleaseLeds, pressureReleaseNumLeds);
 } /*}}} */
 
 void pressure_release_setup() { /*{{{*/
@@ -431,12 +427,12 @@ void pressure_release_setup() { /*{{{*/
 
   // When does a new step occur?
   pressureReleaseFirstStepMsec = 2000;
-  pressureReleaseNextStepMsec = 6000;
+  pressureReleaseNextStepMsec = 8000;
 
   // Not running
   pressureReleaseIsTicking = 0;
 
-  // Set pins
+  // Set pins for buttons
   pinMode(pressureReleasePinIn[0], INPUT_PULLUP);
   pinMode(pressureReleasePinIn[1], INPUT_PULLUP);
 
@@ -444,8 +440,6 @@ void pressure_release_setup() { /*{{{*/
     Serial.print("pressure_release_setup: Current level 0 with direction "); 
     Serial.println(pressureReleaseCurrentDirection);
   #endif
-
-  pressure_release_clear(1);
 } /*}}} */
 
 void displayScore() { /*{{{*/
@@ -463,7 +457,7 @@ void game_setup() {/*{{{*/
   state.current = 150;
 } /*}}}*/
 
-void game_over_or_next_game() { /*{{{*/
+void game_over_or_next_game(uint8_t showPicture) { /*{{{*/
   // Must change state to 0 so that this case is not called again
   state.current = 0;
 
@@ -471,13 +465,13 @@ void game_over_or_next_game() { /*{{{*/
   state.lifes--;
 
   // Show Smiley
-  clearMatrix();
-
-  matrixSetByArray(matrixPicSmileyNegative, 0,0, CRGB::Crimson);
+  if (showPicture) {
+    clearMatrix();
+    matrixSetByArray(matrixPicSmileyNegative, 0,0, CRGB::Crimson);
+  }
 
   // Turn off pressure release game
   pressureReleaseIsTicking = 0;
-  pressure_release_clear(1);
 
   #ifdef DEBUG
     Serial.print("Lifes left = ");
@@ -533,17 +527,20 @@ void press_any_button_to_start_game() { /*{{{*/
   }
 } /*}}} */
 
+void set_difficulty(uint8_t showDifficulty) { /*{{{*/
+  // POTI 0 (Top Left) can be used to set difficulty to 1 -> 6
+  state.difficulty = map(analogRead(gamePotiPins[0]), 0, 1023, 1, GAME_POTI_MAP_TO_MAX + 1);
+
+  if (showDifficulty == 1) {
+    matrixSetByIndex(state.difficulty, 0, 5, CRGB::Yellow);
+  }
+} /*}}} */
+
 // STATE: 2 ... 9
 void game_intro_loop() { /*{{{*/
-  // instantly change state if one game is forced
-  if (force_game_nr > 0) {
-    changeStateTo(10, 1);
-  }
-
   switch (state.current) {
     case 2:
       if (state.next == 0) {
-        pressure_release_clear(1);
         matrixSetByArray(matrixPicBig3, 0, 0, CRGB::Red);
         changeStateTo(3, 750);
       }
@@ -1079,7 +1076,7 @@ void game_master_loop() { /*{{{*/
       break;
     case 100:
       // Game lost -> show smiley -> new game or game over
-      game_over_or_next_game();
+      game_over_or_next_game(1);
       break;
     case 101:
       // Game won!
@@ -1117,6 +1114,8 @@ void game_master_loop() { /*{{{*/
       pressureReleaseIsTicking = 0;
       if (state.next == 0) {
         matrixSetByArray(matrixPicIntro1, 0, 0, CRGB::Green);
+        set_difficulty(1);
+        pressure_release_draw_state();
         changeStateTo(151, 1500);
       }
       press_any_button_to_start_game();
@@ -1126,14 +1125,31 @@ void game_master_loop() { /*{{{*/
       pressureReleaseIsTicking = 0;
       if (state.next == 0) {
         matrixSetByArray(matrixPicIntro2, 0, 0, CRGB::Green);
+        set_difficulty(1);
         changeStateTo(150, 1500);
       }
       press_any_button_to_start_game();
       break;
+    case 170:
+      // Pressure Release game lost outro!
+      if (state.next == 0) {
+        pressureReleaseCurrentLevel = 0;
+        pressureReleaseIsTicking = 0;
+        clearMatrix();
+        matrixSetByArray(matrixPicArrowDown, 0, 0, CRGB::Crimson);
+        changeStateTo(171, 2000);
+      }
+      break;
+    case 171:
+      // Game lost -> DONT show smiley -> new game or game over
+      if (state.next == 0) {
+        game_over_or_next_game(0);
+      }
+      break; 
     case 200:
       // Turn off every led and reset all games
       clearMatrix();
-      pressure_release_clear(0);
+      pressureReleaseCurrentLevel = 0;
       changeStateTo(150, 10);
       break;
   }
@@ -1147,8 +1163,12 @@ void pressure_release_loop() { /*{{{*/
 
   if (pressureReleaseIsTicking == 0) {
     #ifdef DEBUG
-      Serial.println("pressure_release_loop: Not ticking!");
+      if (pressureReleaseDebugTicker > 100) {
+        Serial.println("pressure_release_loop: Not ticking!");
+        pressureReleaseDebugTicker = 0;
+      }
     #endif
+    pressure_release_draw_state();
     return;
   }
 
@@ -1175,9 +1195,10 @@ void pressure_release_loop() { /*{{{*/
     if (pressureReleaseCurrentLevel < -(pressureReleaseNumLeds/2) || pressureReleaseCurrentLevel > (pressureReleaseNumLeds/2)) {
       // Lost!
       #ifdef DEBUG
+        Serial.println("");
         Serial.println("pressure_release_loop: Timer over!");
       #endif
-      changeStateTo(100, 1);
+      changeStateTo(170, 1);
     } else if(pressureReleaseCurrentLevel == 0) {
       // When level is 0 choose a new direction
       pressureReleaseCurrentDirection = random(0, 2) == 0 ? -1 : 1;
@@ -1207,8 +1228,12 @@ void setup() /*{{{*/
   Serial.begin(9600);
   
   matrix_setup();
+  pressure_release_led_setup();
   pressure_release_setup();
+  set_difficulty(0);
   game_setup();
+
+  FastLED.setBrightness(matrixLedBrightness);
 }/*}}}*/
 
 // Main arduino loop
