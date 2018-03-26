@@ -254,7 +254,9 @@ int8_p alpha[10][13] PROGMEM = {
 int8_p matrixPicBig3[13] PROGMEM = {0,0,96,155,109,182,217,230,159,127,0,0,0};
 int8_p matrixPicBig2[13] PROGMEM = {0,0,224,140,119,158,217,102,159,57,0,0,0};
 int8_p matrixPicBig1[13] PROGMEM = {0,0,96,140,113,254,249,103,128,1,0,0,0};
-int8_p matrixPicSmileyPositive[13] PROGMEM = {252,248,119,249,230,251,239,191,249,229,254,241,3};
+int8_p matrixPicSmileyPositive1[13] PROGMEM = {252,248,119,249,230,251,239,191,249,229,254,241,3};
+int8_p matrixPicSmileyPositive2[13] PROGMEM = {252,216,55,121,228,241,199,31,249,228,246,241,3};
+int8_p matrixPicSmileyPositive3[13] PROGMEM = {188,216,54,113,198,185,231,158,241,196,182,241,2};
 int8_p matrixPicSmileyNegative[13] PROGMEM = {252,248,183,249,245,247,223,127,253,230,254,241,3};
 int8_p matrixPicPlug[13] PROGMEM = {0,2,12,16,64,0,1,14,56,224,0,1,0};
 int8_p matrixPicBorder[13] PROGMEM = {255,7,24,96,128,1,6,24,96,128,1,254,15};
@@ -266,8 +268,8 @@ int8_p matrixPicPoti1[13] PROGMEM = {252,24,54,112,128,49,198,24,227,204,182,241
 int8_p matrixPicPoti2[13] PROGMEM = {252,216,54,115,140,49,198,24,224,192,134,241,3};
 int8_p matrixPicPoti3[13] PROGMEM = {252,24,54,124,184,113,198,24,224,192,134,241,3};
 int8_p matrixPicPoti4[13] PROGMEM = {252,24,54,112,128,49,198,25,238,240,134,241,3};
-int8_p matrixPicIntro1[13] PROGMEM = {1,4,112,64,1,69,148,81,255,253,97,4,1}; //{0,4,112,68,25,245,215,95,198,17,1,0,0};
-int8_p matrixPicIntro2[13] PROGMEM = {1,4,48,192,0,35,204,176,223,126,49,132,0}; //{0,4,48,194,12,251,237,55,195,8,1,0,0};
+int8_p matrixPicIntro1[13] PROGMEM = {1,4,112,64,1,69,148,81,255,253,97,4,1};
+int8_p matrixPicIntro2[13] PROGMEM = {1,4,48,192,0,35,204,176,223,126,49,132,0};
 int8_p matrixPicArrowDown[13] PROGMEM = {0,32,192,128,3,255,255,239,0,3,8,0,0};
 /*}}}*/
 
@@ -1114,8 +1116,19 @@ void game_master_loop() { /*{{{*/
       state.score++;
 
       clearMatrix();
-      // Show smiley
-      matrixSetByArray(matrixPicSmileyPositive, 0,0, CRGB::Green);
+
+      // Show smiley (1, 2, 3)
+      switch(random(1,4)) {
+        case 1:
+          matrixSetByArray(matrixPicSmileyPositive1, 0,0, CRGB::Green);
+          break;
+        case 2:
+          matrixSetByArray(matrixPicSmileyPositive2, 0,0, CRGB::Green);
+          break;
+        case 3:
+          matrixSetByArray(matrixPicSmileyPositive3, 0,0, CRGB::Green);
+          break;
+      }
 
       changeStateTo(102, 1);
       break;
