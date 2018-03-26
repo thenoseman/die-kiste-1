@@ -76,6 +76,7 @@
 // TODOS:
 // - Make PR game leds set separatly from .show() (see https://github.com/FastLED/FastLED/wiki/Multiple-Controller-Examples#managing-your-own-output)
 // - Switchboard game: solution check after 100 msec so that the cable must keep connecting for some time
+// - Highscore keeping
 
 /* DEBUG SETTINGS {{{ */
 // Cancel all things related to the pressure release game
