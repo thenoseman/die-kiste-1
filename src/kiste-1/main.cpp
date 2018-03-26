@@ -1,9 +1,10 @@
 #include <Arduino.h>
-#include <HardwareSerial.h>
 #include <FastLED.h>
 #include <PGMWrap.h>
-
-extern HardwareSerial Serial;
+#ifdef DEBUG
+  #include <HardwareSerial.h>
+  extern HardwareSerial Serial;
+#endif
 
 //                                   +-----+
 //                      +------------| USB |-------------+
@@ -1270,7 +1271,9 @@ void pressure_release_loop() { /*{{{*/
 // Main arduino setup
 void setup() /*{{{*/
 {
-  Serial.begin(9600);
+  #ifdef DEBUG
+    Serial.begin(9600);
+  #endif
   
   matrix_setup();
   pressure_release_led_setup();
