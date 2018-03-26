@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <FastLED.h>
 #include <PGMWrap.h>
-#ifdef DEBUG
+#if defined (DEBUG) || defined (DEBUG2)
   #include <HardwareSerial.h>
   extern HardwareSerial Serial;
 #endif
@@ -127,7 +127,7 @@ const uint8_t pressureReleasePinIn[] = { A1, A2 };
 const uint8_t pressureReleaseLedPin = A3;
 uint8_t pressureReleaseCurrentButton = 255;
 const int pressureReleaseLedBrightness = 20;
-#ifdef DEBUG
+#ifdef DEBUG2
   uint8_t pressureReleaseDebugTicker = 0;
 #endif
 
@@ -280,7 +280,7 @@ void changeStateTo(const unsigned int nextState, const unsigned long nextStateIn
     state.nextStateAtMsec = millis() + nextStateInMsec;
     state.next = nextState;
 
-    #ifdef DEBUG
+    #ifdef DEBUG2
       Serial.print("[STATE]: next = ");  
       Serial.print(state.next);
       Serial.print(" @msec = ");
@@ -295,7 +295,7 @@ void updateState() { /*{{{*/
     state.nextStateAtMsec = 0;
     state.next = 0;
 
-    #ifdef DEBUG
+    #ifdef DEBUG2
       Serial.print("[STATE] current = ");
       Serial.println(state.current);
     #endif
@@ -387,7 +387,7 @@ void pressure_release_button_handling() { /*{{{*/
     // LEFT button
     pressureReleaseCurrentLevel++; 
 
-    #ifdef DEBUG
+    #ifdef DEBUG2
       Serial.print("pressure_release_button_handling: Button #0 (LEFT) released");
     #endif
 
@@ -399,7 +399,7 @@ void pressure_release_button_handling() { /*{{{*/
   if (digitalRead(pressureReleasePinIn[1]) == HIGH && pressureReleaseCurrentButton == 1 && pressureReleaseCurrentLevel > -(pressureReleaseNumLeds/2)) {
     pressureReleaseCurrentLevel--; 
 
-    #ifdef DEBUG
+    #ifdef DEBUG2
       Serial.print("pressure_release_button_handling: Button #1 (RIGHT) released");
     #endif
 
@@ -407,7 +407,7 @@ void pressure_release_button_handling() { /*{{{*/
     pressureReleaseCurrentButton = 255;
   }
 
-  #ifdef DEBUG
+  #ifdef DEBUG2
     if (pressureReleaseCurrentButton == 255) {
       //Serial.print("pressure_release_button_handling: pressureReleaseCurrentLevel = ");
       //Serial.println(pressureReleaseCurrentLevel);
@@ -448,7 +448,7 @@ void pressure_release_setup() { /*{{{*/
   pinMode(pressureReleasePinIn[0], INPUT_PULLUP);
   pinMode(pressureReleasePinIn[1], INPUT_PULLUP);
 
-  #ifdef DEBUG
+  #ifdef DEBUG2
     Serial.print("pressure_release_setup: Current level 0 with direction "); 
     Serial.println(pressureReleaseCurrentDirection);
   #endif
@@ -485,7 +485,7 @@ void game_over_or_next_game(uint8_t showPicture) { /*{{{*/
   // Turn off pressure release game
   pressureReleaseIsTicking = 0;
 
-  #ifdef DEBUG
+  #ifdef DEBUG2
     Serial.print("Lifes left = ");
     Serial.println(state.lifes);
   #endif
@@ -508,7 +508,7 @@ void press_any_button_to_start_game() { /*{{{*/
     pinMode(gameArcadeButtonPinsDin[i], INPUT_PULLUP);
 
     if (digitalRead(gameArcadeButtonPinsDin[i]) == HIGH) {
-      #ifdef DEBUG
+      #ifdef DEBUG2
         Serial.print("[press any key] Arcade button ");
         Serial.print(i);
         Serial.println(" pressed!");
@@ -523,7 +523,7 @@ void press_any_button_to_start_game() { /*{{{*/
     pinMode(pressureReleasePinIn[i], INPUT_PULLUP);
 
     if (digitalRead(pressureReleasePinIn[i]) == LOW) {
-      #ifdef DEBUG
+      #ifdef DEBUG2
         Serial.print("[press any key] pressure button ");
         Serial.print(i);
         Serial.println(" pressed!");
@@ -607,7 +607,7 @@ void game_choose() { /*{{{*/
   // Every game has 10 possible states
   changeStateTo((activeGame * 10) + 10, 1);
 
-  #ifdef DEBUG
+  #ifdef DEBUG2
     Serial.print("game_choose: activeGame = ");
     Serial.println(activeGame);
   #endif
@@ -623,7 +623,7 @@ void game_switchboard_reset() { /*{{{*/
 
   switchboard.number = gameSwitchboardPinValues[switchboard.activePin1] + gameSwitchboardPinValues[switchboard.activePin2];
 
-  #ifdef DEBUG
+  #ifdef DEBUG2
     Serial.print("game_switchboard_reset: activePin1 = ");
     Serial.print(switchboard.activePin1);
     Serial.print(", activePin2 = ");
@@ -685,7 +685,7 @@ void game_switchboard_loop() { /*{{{*/
         gameSwitchboardPinActive1 = inputPinIndex;
         gameSwitchboardPinActive2 = outputPinIndex;
 
-        #ifdef DEBUG
+        #ifdef DEBUG2
           Serial.print("game_switchboard_loop: Connection from IN ");
           Serial.print(gameSwitchboardPinActive1);
           Serial.print(" (");
@@ -752,7 +752,7 @@ void game_arcade_button_reset() { /*{{{*/
   // Choose random buttons for every slot
   for(uint8_t i = 0; i < gameArcadeNumberOfButtonPresses; i++) {
     buttonsToPress[i] = random(0, gameArcadeButtonNumberOfButtons);
-    #ifdef DEBUG
+    #ifdef DEBUG2
       Serial.print("game_arcade_button_reset: Must press button #");
       Serial.print(i);
       Serial.print(" = ");
@@ -781,7 +781,7 @@ void game_arcade_button_show_task() { /*{{{*/
       game_arcade_button_display_button(buttonsToPress[gameArcadeButtonState/2] - 1, CRGB::Black);
       gameArcadeButtonTimer = millis() + gameArcadeButtonShowColorPauseMsec;
 
-      #ifdef DEBUG
+      #ifdef DEBUG2
         Serial.println("game_arcade_button_show_task(): Pausing");
       #endif
 
@@ -789,7 +789,7 @@ void game_arcade_button_show_task() { /*{{{*/
       color = gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]];
       gameArcadeButtonTimer = millis() + gameArcadeButtonShowColorMsec;
 
-      #ifdef DEBUG
+      #ifdef DEBUG2
         Serial.print("game_arcade_button_show_task(): Showing button #");
         Serial.print(gameArcadeButtonState/2);
         Serial.print(", button ID ");
@@ -832,7 +832,7 @@ void game_arcade_button_detect_pressed() { /*{{{*/
       gameArcadePrevPressedButton = gameArcadeButtonPinsDin[i];
       digitalWrite(gameArcadeButtonPinsLedOut[i], HIGH);
 
-      #ifdef DEBUG
+      #ifdef DEBUG2
         Serial.print("game_arcade_button_detect_pressed(): Button D");
         Serial.print(gameArcadeButtonPinsDin[i]);
         Serial.print(" is HIGH; gameArcadePrevPressedButton = ");
@@ -842,7 +842,7 @@ void game_arcade_button_detect_pressed() { /*{{{*/
       // If the pressed button gets depressed -> count it
       gameArcadePressedButton = gameArcadeButtonPinsDin[i];
 
-      #ifdef DEBUG
+      #ifdef DEBUG2
         Serial.print("game_arcade_button_detect_pressed(): Must press D");
         Serial.print(gameArcadeButtonPinsDin[buttonsToPress[gameArcadePressedSoFarIndex]]);
         Serial.print(" as press #");
@@ -932,7 +932,7 @@ void game_poti_reset() { /*{{{*/
       gamePotiCurrentValue[i] = 0;
       gamePotiReadings[i] = 0;
 
-      #ifdef DEBUG
+      #ifdef DEBUG2
         Serial.print("game_poti_reset: Poti #");
         Serial.print(i);
         Serial.print(" = ");
@@ -956,7 +956,7 @@ void game_poti_reset() { /*{{{*/
 void game_poti_show_challenge() { /*{{{*/
   if (state.next == 0) {
     for(uint8_t i = 0; i < GAME_POTI_NUM_POTIS; i++) {
-      #ifdef DEBUG
+      #ifdef DEBUG2
        Serial.print("Showing poti #");
        Serial.print(i);
        Serial.print(" (");
@@ -979,7 +979,7 @@ void game_poti_show_challenge() { /*{{{*/
 
 // STATE: 43
 void game_poti_detect_potis() { /*{{{*/
-  #ifdef DEBUG
+  #ifdef DEBUG2
     Serial.print("game_poti_detect_potis: Current/Target = ");
   #endif
 
@@ -995,7 +995,7 @@ void game_poti_detect_potis() { /*{{{*/
     gamePotiCurrentValue[potiIndex] = map(gamePotiReadings[potiIndex]/10, 0, 1023, 1, GAME_POTI_MAP_TO_MAX + 1);
     //gamePotiCurrentValue[potiIndex] = map(gamePotiReadings[potiIndex]/10, 65, 962, 1, GAME_POTI_MAP_TO_MAX + 1);
 
-    #ifdef DEBUG
+    #ifdef DEBUG2
       Serial.print("#");
       Serial.print(potiIndex);
       Serial.print(" (A");
@@ -1011,7 +1011,7 @@ void game_poti_detect_potis() { /*{{{*/
     #endif
   }
 
-  #ifdef DEBUG
+  #ifdef DEBUG2
     Serial.println("");
   #endif
 } /*}}} */
@@ -1209,7 +1209,7 @@ void pressure_release_loop() { /*{{{*/
   }
 
   if (pressureReleaseIsTicking == 0) {
-    #ifdef DEBUG
+    #ifdef DEBUG2
       if (pressureReleaseDebugTicker > 100) {
         Serial.println("pressure_release_loop: Not ticking!");
         pressureReleaseDebugTicker = 0;
@@ -1230,7 +1230,7 @@ void pressure_release_loop() { /*{{{*/
     // Increase level in the direction
     pressureReleaseCurrentLevel += pressureReleaseCurrentDirection;
 
-    #ifdef DEBUG
+    #ifdef DEBUG2
       Serial.print("pressure_release_loop: pressureReleaseCurrentLevel = ");
       Serial.print(pressureReleaseCurrentLevel);
       Serial.print("; Direction =");
@@ -1241,7 +1241,7 @@ void pressure_release_loop() { /*{{{*/
     // -4 --- 0 --- 4 (Level) 
     if (pressureReleaseCurrentLevel < -(pressureReleaseNumLeds/2) || pressureReleaseCurrentLevel > (pressureReleaseNumLeds/2)) {
       // Lost!
-      #ifdef DEBUG
+      #ifdef DEBUG2
         Serial.println("");
         Serial.println("pressure_release_loop: Timer over!");
       #endif
@@ -1250,7 +1250,7 @@ void pressure_release_loop() { /*{{{*/
       // When level is 0 choose a new direction
       pressureReleaseCurrentDirection = random(0, 2) == 0 ? -1 : 1;
 
-      #ifdef DEBUG
+      #ifdef DEBUG2
         Serial.print("; New direction = ");
         Serial.print(pressureReleaseCurrentDirection);
       #endif
@@ -1258,7 +1258,7 @@ void pressure_release_loop() { /*{{{*/
     
     pressure_release_draw_state();
 
-    #ifdef DEBUG
+    #ifdef DEBUG2
       Serial.print("; Red LED = ");
       Serial.println(matrixNumLeds + pressureReleaseCurrentLevel + (pressureReleaseNumLeds/2));
     #endif
@@ -1272,7 +1272,7 @@ void pressure_release_loop() { /*{{{*/
 // Main arduino setup
 void setup() /*{{{*/
 {
-  #ifdef DEBUG
+  #if defined (DEBUG) || defined (DEBUG2)
     Serial.begin(9600);
   #endif
   
