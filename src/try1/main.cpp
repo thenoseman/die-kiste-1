@@ -644,7 +644,6 @@ void game_switchboard_reset() { /*{{{*/
   switchboard.startMillis = millis();
 
   // Set time the player has to solve the cahllenge in msec
-  // TODO: dynamic:
   if (force_time_to_solve_msec > 0 && force_game_nr > 0) {
     switchboard.timeToSolveMillis = force_time_to_solve_msec;
   } else {
@@ -1182,6 +1181,7 @@ void game_master_loop() { /*{{{*/
       // Turn off every led and reset all games
       clearMatrix();
       pressureReleaseCurrentLevel = 0;
+      force_game_nr = 0;
       changeStateTo(150, 10);
       break;
   }
