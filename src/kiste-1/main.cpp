@@ -78,6 +78,7 @@
 // - Switchboard game: solution check after 1000 msec so that the cable must keep connecting for some time
 // - Highscore keeping
 // - Reset the box via all arcade buttons pressed at the same time
+// - Poti game: Randomize colors for score > ? and let the player chose the poti BY COLOR instead of by position
 
 /* DEBUG SETTINGS {{{ */
 // Cancel all things related to the pressure release game
