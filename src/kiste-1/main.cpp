@@ -74,11 +74,11 @@
 // DIFFICULTY 4+: all games and PR game
 //
 // TODOS:
-// - Make PR game leds set separatly from .show() (see https://github.com/FastLED/FastLED/wiki/Multiple-Controller-Examples#managing-your-own-output)
+// - Make PR game leds set separately from .show() (see https://github.com/FastLED/FastLED/wiki/Multiple-Controller-Examples#managing-your-own-output)
 // - Switchboard game: solution check after 1000 msec so that the cable must keep connecting for some time
 // - Highscore keeping
 // - Reset the box via all arcade buttons pressed at the same time
-// - Poti game: Randomize colors for score > ? and let the player chose the poti BY COLOR instead of by position
+// - Poti game: Randomize colors for score > ? and let the player choose the poti BY COLOR instead of by position
 
 /* DEBUG SETTINGS {{{ */
 // Cancel all things related to the pressure release game
@@ -96,6 +96,10 @@ unsigned long force_time_to_solve_msec = 0;
 /*}}} */
 
 /* GLOBAL GAME STATE {{{*/
+
+// The Main entry point when the power is turned on or everything is reset
+#define GAME_STATE_START 150 
+
 typedef struct State {
   unsigned int current;
   unsigned int next;
@@ -105,7 +109,7 @@ typedef struct State {
   unsigned int difficulty;
 } State;
 
-State state = { .current = 150, .next = 150, .nextStateAtMsec = 1, .score = 0, .lifes = 3, .difficulty = 0};
+State state = { .current = GAME_STATE_START, .next = GAME_STATE_START, .nextStateAtMsec = 1, .score = 0, .lifes = 3, .difficulty = 0};
 
 // Currently active game
 int activeGame = 0;
@@ -118,23 +122,48 @@ unsigned long previousProgress = 0;
 /*}}}*/
 
 /*{{{ PRESSURE RELEASE SETTINGS */
-uint8_t pressureReleaseIsTicking = 1;
+// Number of leds in the pr led strip
 const uint8_t pressureReleaseNumLeds = 9;
-int8_t pressureReleaseCurrentLevel = 0;
-int8_t pressureReleaseCurrentDirection = 1;
-unsigned long pressureReleaseTimerMsec;
-unsigned long pressureReleaseNextStepMsec;
-unsigned long pressureReleaseFirstStepMsec;
-const uint8_t pressureReleasePinIn[] = { A1, A2 };
-const uint8_t pressureReleaseLedPin = A3;
-uint8_t pressureReleaseCurrentButton = 255;
-const int pressureReleaseLedBrightness = 20;
-#ifdef DEBUG2
-  uint8_t pressureReleaseDebugTicker = 0;
-#endif
 
 // Pressure Release LEDs
 CRGB pressureReleaseLeds[pressureReleaseNumLeds];
+
+// Pins used for the re buttons LEFT and RIGHT
+const uint8_t pressureReleasePinIn[] = { A1, A2 };
+
+// Colors used for thread level indication
+// 0 -> 4
+const CHSV pressureReleaseThreadLevelColors[] = { CHSV(HUE_GREEN, 255, 255), CHSV(HUE_YELLOW, 255, 255), CHSV(HUE_ORANGE, 255, 255), CHSV(HUE_RED, 255, 255), CHSV(HUE_PINK, 255, 255) };
+
+// Pin used for addressing the pr strip
+const uint8_t pressureReleaseLedPin = A3;
+
+// Brightness of led strip
+const uint8_t pressureReleaseLedBrightness = 20;
+
+// 1 = need redraw
+uint8_t pressureReleaseLedsModified = 0;
+
+// Wether the pressure release loop is run or not
+uint8_t pressureReleaseIsTicking = 1;
+
+// current threat level and direction
+int8_t pressureReleaseCurrentLevel = 0;
+int8_t pressureReleaseCurrentDirection = 1;
+
+// Timers
+unsigned long pressureReleaseTimerMsec;
+unsigned long pressureReleaseNextStepMsec;
+unsigned long pressureReleaseFirstStepMsec;
+
+// Currently pressed button. When released will be used as "pressed button"
+uint8_t pressureReleaseCurrentButton = 255;
+
+#ifdef DEBUG2
+  // Used to not spam the serial console
+  uint8_t pressureReleaseDebugTicker = 0;
+#endif
+
 /*}}}*/
 
 /* MATRIX SETTINGS {{{*/
@@ -142,7 +171,7 @@ const int matrixDinPin = A0;
 
 // 100 Leds for display (10x10)
 const int matrixNumLeds = 100;
-const int matrixLedBrightness = 20;
+const uint8_t matrixLedBrightness = 20;
 
 // 0 = no LED update
 // 1 = full clear + update
@@ -349,9 +378,17 @@ void showProgressBar(unsigned long progress, uint8_t horizontal) { /*{{{*/
   matrixLedsModified = 2;
 } /*}}} */
 
+void updateMatrixLeds() {/*{{{*/
+  FastLED[0].showLeds(matrixLedBrightness);
+} /*}}} */
+
+void updatePressureReleaseLeds() {/*{{{*/
+  FastLED[1].showLeds(pressureReleaseLedBrightness);
+} /*}}} */
+
 void clearMatrix() { /*{{{*/
   fill_solid(matrixLeds, matrixNumLeds, CRGB::Black);
-  FastLED.show();
+  updateMatrixLeds();
 } /*}}} */
 
 void game_arcade_button_display_button(int buttonIndex, CRGB color) { /*{{{*/
@@ -367,12 +404,16 @@ void matrix_setup() /*{{{*/{
 void pressure_release_draw_state() { /*{{{*/
   uint8_t currentLit = pressureReleaseCurrentLevel + (pressureReleaseNumLeds/2);
 
-  // Display current level
-  for(uint8_t i=0; i < pressureReleaseNumLeds; i++) {
-    // Reset
-    pressureReleaseLeds[i] = CRGB::Black;
-  }
-  pressureReleaseLeds[currentLit] = CRGB::Red;
+  // Threat level
+  // 432101234
+  uint8_t threadLevel = abs(pressureReleaseCurrentLevel);
+
+  // Clear and display current level
+  fill_solid(pressureReleaseLeds, pressureReleaseNumLeds, CRGB::Black);
+  pressureReleaseLeds[currentLit] = pressureReleaseThreadLevelColors[threadLevel];
+
+  // Trigger draw in loop()
+  pressureReleaseLedsModified = 1;
 } /*}}} */
 
 void pressure_release_button_handling() { /*{{{*/
@@ -411,8 +452,8 @@ void pressure_release_button_handling() { /*{{{*/
 
   #ifdef DEBUG2
     if (pressureReleaseCurrentButton == 255) {
-      //Serial.print("pressure_release_button_handling: pressureReleaseCurrentLevel = ");
-      //Serial.println(pressureReleaseCurrentLevel);
+      Serial.print("pressure_release_button_handling: pressureReleaseCurrentLevel = ");
+      Serial.println(pressureReleaseCurrentLevel);
     }
   #endif
 } /*}}} */
@@ -468,7 +509,7 @@ void game_setup() {/*{{{*/
   state.score = 0;
 
   // Start at "press any key"
-  state.current = 150;
+  state.current = GAME_STATE_START;
 } /*}}}*/
 
 void game_over_or_next_game(uint8_t showPicture) { /*{{{*/
@@ -554,9 +595,11 @@ void set_difficulty(uint8_t showDifficulty) { /*{{{*/
   force_game_nr = 0;
 
   // DIFFICULTY 1: Only arcade button game, no PR game
-  // DIFFICULTY 2: arcade button game, poti game, no PR game
-  // DIFFICULTY 3: all games, no PR game
-  // DIFFICULTY 4+: all games and PR game
+  // DIFFICULTY 2: Arcade button game, poti game, no PR game (see game_choose())
+  // DIFFICULTY 3: All games, no PR game
+  // DIFFICULTY 4: Only arcade button game + PR game
+  // DIFFICULTY 5: Arcade button game, poti game and PR game (see game_choose())
+  // DIFFICULTY 6: All games and PR game
   switch(state.difficulty) {
     case 1:
       force_game_nr = 2;
@@ -567,6 +610,9 @@ void set_difficulty(uint8_t showDifficulty) { /*{{{*/
       break;
     case 3:
       pressure_release_game_flag = 1;
+      break;
+    case 4:
+      force_game_nr = 2;
       break;
   }
 
@@ -598,16 +644,14 @@ void game_intro_loop() { /*{{{*/
 
 // STATE: 10
 void game_choose() { /*{{{*/
-  uint8_t maxGame = numberOfGames; 
-
-  if (state.difficulty == 2) {
-    // On difficulty 2 choose only arcade button (2) + poti game (3)
+  if (state.difficulty == 2 || state.difficulty == 4) {
+    // On difficulty 2 and 4 choose only arcade button (2) + poti game (3)
     activeGame = random(2, 3 + 1); 
   } else if (force_game_nr > 0) {
     // force a single game
     activeGame = force_game_nr;
   } else {
-    activeGame = random(1, maxGame + 1); 
+    activeGame = random(1, numberOfGames + 1); 
   }
 
   // Every game has 10 possible states
@@ -1165,7 +1209,7 @@ void game_master_loop() { /*{{{*/
       displayScore();
       changeStateTo(200, 8000);
       break;
-    case 150:
+    case GAME_STATE_START:
       // Box intro 1
       pressureReleaseIsTicking = 0;
       if (state.next == 0) {
@@ -1182,7 +1226,7 @@ void game_master_loop() { /*{{{*/
       if (state.next == 0) {
         matrixSetByArray(matrixPicIntro2, 0, 0, CRGB::Green);
         set_difficulty(1);
-        changeStateTo(150, 1500);
+        changeStateTo(GAME_STATE_START, 1500);
       }
       press_any_button_to_start_game();
       break;
@@ -1207,7 +1251,7 @@ void game_master_loop() { /*{{{*/
       clearMatrix();
       pressureReleaseCurrentLevel = 0;
       force_game_nr = 0;
-      changeStateTo(150, 10);
+      changeStateTo(GAME_STATE_START, 10);
       break;
   }
 } /*}}} */
@@ -1225,7 +1269,8 @@ void pressure_release_loop() { /*{{{*/
         pressureReleaseDebugTicker = 0;
       }
     #endif
-    pressure_release_draw_state();
+    // TODO: needed?
+    //pressure_release_draw_state();
     return;
   }
 
@@ -1269,14 +1314,39 @@ void pressure_release_loop() { /*{{{*/
     pressure_release_draw_state();
 
     #ifdef DEBUG2
-      Serial.print("; Red LED = ");
-      Serial.println(matrixNumLeds + pressureReleaseCurrentLevel + (pressureReleaseNumLeds/2));
+      Serial.print("; Red LED index = ");
+      Serial.println(pressureReleaseCurrentLevel + (pressureReleaseNumLeds/2));
     #endif
 
     // Set new timer
     pressureReleaseTimerMsec = millis();
-    matrixLedsModified = 2;
   }
+} /*}}} */
+
+// Misc commands loop
+void misc_commands_loop() { /*{{{*/
+  // pressing all arcade buttons at the same time = reset
+  uint8_t numberOfArcadeButtonsPressed = 0;
+  for(uint8_t i = 0; i < gameArcadeButtonNumberOfButtons; i++) {
+    if (digitalRead(gameArcadeButtonPinsDin[i]) == HIGH) {
+      numberOfArcadeButtonsPressed++;
+    }
+  }
+
+  // All pressed? Reset the box!
+  if(numberOfArcadeButtonsPressed == 3) {
+    changeStateTo(GAME_STATE_START, 1);
+  }
+
+  // Pressing the outer arcade buttons + the right pressure release button adds +5 score
+  // Works only in DEBUG or DEBUG2 mode
+  #if defined (DEBUG) || defined (DEBUG2)
+    if (digitalRead(gameArcadeButtonPinsDin[0]) == HIGH && 
+        digitalRead(gameArcadeButtonPinsDin[gameArcadeButtonNumberOfButtons - 1]) == HIGH &&
+        digitalRead(pressureReleasePinIn[1]) == HIGH)  {
+      state.score = state.score + 5;
+    }
+  #endif
 } /*}}} */
 
 // Main arduino setup
@@ -1303,11 +1373,12 @@ void loop() /*{{{*/
 
   // Reset all LEDs
   if (matrixLedsModified == 1) {
+    fill_solid(matrixLeds, matrixNumLeds, CRGB::Black);
     matrixLedsModified = 0;
-    for(uint8_t i=0; i < matrixNumLeds; i++) {
-      matrixLeds[i] = CRGB::Black;
-    }
   }
+
+  // misc commands loop
+  misc_commands_loop();
 
   // Run pressure release loop
   pressure_release_loop();
@@ -1315,8 +1386,13 @@ void loop() /*{{{*/
   // Run master loop
   game_master_loop();
 
-  // If leds have been modified, show them
+  // If MATRIX leds have been modified, show them
   if (matrixLedsModified > 0) {
-    FastLED.show();
+    updateMatrixLeds();
+  }
+
+  // If PRESSURE RELEASE leds have been modified, show them
+  if (pressureReleaseLedsModified > 0) {
+    updatePressureReleaseLeds();
   }
 } /*}}}*/
