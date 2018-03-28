@@ -75,8 +75,9 @@
 //
 // TODOS:
 // - Make PR game leds set separatly from .show() (see https://github.com/FastLED/FastLED/wiki/Multiple-Controller-Examples#managing-your-own-output)
-// - Switchboard game: solution check after 100 msec so that the cable must keep connecting for some time
+// - Switchboard game: solution check after 1000 msec so that the cable must keep connecting for some time
 // - Highscore keeping
+// - Reset the box via all arcade buttons pressed at the same time
 
 /* DEBUG SETTINGS {{{ */
 // Cancel all things related to the pressure release game
@@ -547,6 +548,10 @@ void set_difficulty(uint8_t showDifficulty) { /*{{{*/
     matrixSetByIndex(state.difficulty, 0, 5, CRGB::Yellow);
   }
 
+  // Reset relevant vars
+  pressure_release_game_flag = 0;
+  force_game_nr = 0;
+
   // DIFFICULTY 1: Only arcade button game, no PR game
   // DIFFICULTY 2: arcade button game, poti game, no PR game
   // DIFFICULTY 3: all games, no PR game
@@ -594,12 +599,12 @@ void game_intro_loop() { /*{{{*/
 void game_choose() { /*{{{*/
   uint8_t maxGame = numberOfGames; 
 
-  if (force_game_nr > 0) {
-    // force a single game
-    activeGame = force_game_nr;
-  } else if(state.difficulty == 2) {
+  if (state.difficulty == 2) {
     // On difficulty 2 choose only arcade button (2) + poti game (3)
     activeGame = random(2, 3 + 1); 
+  } else if (force_game_nr > 0) {
+    // force a single game
+    activeGame = force_game_nr;
   } else {
     activeGame = random(1, maxGame + 1); 
   }
@@ -940,11 +945,15 @@ void game_poti_reset() { /*{{{*/
       #endif
 
       // How much time does the player get to solve it, msec
-      // TODO dynamic!
       if (force_time_to_solve_msec > 0) {
         gamePotiTimeToSolveMsec = force_time_to_solve_msec;
       } else {
-        gamePotiTimeToSolveMsec = 15000;
+        // Every 5 points/score loose one second of reaction time
+        // with a lower limit of 6000 msec
+        gamePotiTimeToSolveMsec = 15000 - int((state.score * 200));
+        if (gamePotiTimeToSolveMsec < 6000) {
+          gamePotiTimeToSolveMsec = 6000;
+        }
       }
     }
   }
