@@ -55,29 +55,29 @@
 // 1. Switchboard
 // --------------
 // The game will display a number which is the addition of the two ports to connect
-// eg. when 36 is shown connect D4 (Value 4) and D6 (Value 32)
+// eg. When 36 is shown connect D4 (Value 4) and D6 (Value 32)
 //
 // 2. Arcade Buttons
 // -----------------
-// A sequence of buttons will be displayed. Press them in this order. Thinks the classical Senso/Simon game.
+// A sequence of buttons will be displayed. 
+// Press them in this order. Thinks the classical Senso/Simon game.
+// Every 5 points (gameArcadeLongerChainEveryScore) one color to remember is added.
+// Once the player gets more than 10 (2 * gameArcadeLongerChainEveryScore) points in the game the button LEDS 
+// themself will also be used.
 //
 // 3. Potentiometer
 // ----------------
-// Dial the potentiometers in each corner to the corresponding value
+// Dial the potentiometers in each corner to the corresponding value indicated by the number OF THE SAME COLOR.
+// Once the player reached 10 points the position of the numbers will be randomized in 25% of all cases.
+// For every 10 points the player will get one second less time to react.
 //
 // Difficulty settings:
 // --------------------
-//
-// DIFFICULTY 1: Only arcade button game, no PR game
-// DIFFICULTY 2: arcade button game, poti game, no PR game
-// DIFFICULTY 3: all games, no PR game
-// DIFFICULTY 4+: all games and PR game
+// see set_difficulty()
 //
 // TODOS:
-// - Make PR game leds set separately from .show() (see https://github.com/FastLED/FastLED/wiki/Multiple-Controller-Examples#managing-your-own-output)
 // - Switchboard game: solution check after 1000 msec so that the cable must keep connecting for some time
 // - Highscore keeping
-// - Reset the box via all arcade buttons pressed at the same time
 // - Poti game: Randomize colors for score > ? and let the player choose the poti BY COLOR instead of by position
 
 /* DEBUG SETTINGS {{{ */
@@ -98,7 +98,13 @@ unsigned long force_time_to_solve_msec = 0;
 /* GLOBAL GAME STATE {{{*/
 
 // The Main entry point when the power is turned on or everything is reset
-#define GAME_STATE_START 150 
+#define GAME_BOX_STATE_START 150 
+
+// Startvalues
+#define START_WITH_SCORE 0
+#define START_WITH_LIVES 3
+
+#define NUMBER_OF_GAMES 3
 
 typedef struct State {
   unsigned int current;
@@ -109,7 +115,7 @@ typedef struct State {
   unsigned int difficulty;
 } State;
 
-State state = { .current = GAME_STATE_START, .next = GAME_STATE_START, .nextStateAtMsec = 1, .score = 0, .lifes = 3, .difficulty = 0};
+State state = { .current = GAME_BOX_STATE_START, .next = GAME_BOX_STATE_START, .nextStateAtMsec = 1, .score = START_WITH_SCORE, .lifes = START_WITH_LIVES, .difficulty = 0};
 
 // Currently active game
 int activeGame = 0;
@@ -240,6 +246,7 @@ uint8_t gameArcadeNumberOfButtonPresses = 3;
 uint8_t gameArcadePressedButton = 0;
 uint8_t gameArcadePrevPressedButton = 0;
 uint8_t gameArcadePressedSoFarIndex = 0;
+uint8_t gameArcadeButtonUseButtonLedsAlso = 0;
 
 // Maximum presses is 20
 uint8_t buttonsToPress[20];
@@ -258,7 +265,7 @@ unsigned long gamePotiTimeToSolveMsec = 5000;
 unsigned long gamePotiChallengeStartMsec;
 uint16_t gamePotiReadings[GAME_POTI_NUM_POTIS];
 uint8_t gamePotiReadingsIndex = 0;
-uint8_t gamePotiCurrentValue[GAME_POTI_NUM_POTIS] = { 0, 0, 0, 0 };
+uint8_t gamePotiCurrentValue[] = { 0, 0, 0, 0 };
 
 // 0 = Top Left
 // 1 = Top Right
@@ -465,6 +472,9 @@ void pressure_release_led_setup() { /*{{{*/
 void pressure_release_setup() { /*{{{*/
   // Cancel if not wanted
   if (pressure_release_game_flag == 1) {
+    // Clear PR leds
+    fill_solid(pressureReleaseLeds, pressureReleaseNumLeds, CRGB::Black);
+    pressureReleaseLedsModified = 1;
     return;
   }
 
@@ -495,6 +505,8 @@ void pressure_release_setup() { /*{{{*/
     Serial.print("pressure_release_setup: Current level 0 with direction "); 
     Serial.println(pressureReleaseCurrentDirection);
   #endif
+
+  pressure_release_draw_state();
 } /*}}} */
 
 void displayScore() { /*{{{*/
@@ -505,11 +517,11 @@ void displayScore() { /*{{{*/
 
 void game_setup() {/*{{{*/
   randomSeed(analogRead(4));
-  state.lifes = 3;
-  state.score = 0;
+  state.lifes = START_WITH_LIVES;
+  state.score = START_WITH_SCORE;
 
   // Start at "press any key"
-  state.current = GAME_STATE_START;
+  state.current = GAME_BOX_STATE_START;
 } /*}}}*/
 
 void game_over_or_next_game(uint8_t showPicture) { /*{{{*/
@@ -583,16 +595,38 @@ void press_any_button_to_start_game() { /*{{{*/
 } /*}}} */
 
 void set_difficulty(uint8_t showDifficulty) { /*{{{*/
+  CRGB diffColor = CRGB::Yellow;
+
   // POTI 0 (Top Left) can be used to set difficulty to 1 -> 6
   state.difficulty = map(analogRead(gamePotiPins[0]), 0, 1023, 1, GAME_POTI_MAP_TO_MAX + 1);
-
-  if (showDifficulty == 1) {
-    matrixSetByIndex(state.difficulty, 0, 5, CRGB::Yellow);
-  }
 
   // Reset relevant vars
   pressure_release_game_flag = 0;
   force_game_nr = 0;
+
+  // All potis on 6? 
+  // Only PR game in DEBUG or DEBUG2
+  #if defined (DEBUG) || defined (DEBUG2)
+    uint8_t potisOnMaxCount = 0;
+    for(uint8_t potiIndex = 0; potiIndex < GAME_POTI_NUM_POTIS; potiIndex++) {
+      if(map(analogRead(gamePotiPins[potiIndex]), 0, 1023, 1, GAME_POTI_MAP_TO_MAX + 1) == 6) {
+        potisOnMaxCount++;
+      }
+    }
+
+    if (potisOnMaxCount == GAME_POTI_NUM_POTIS) {
+      // Turn off all games but PR
+      pressure_release_game_flag = 255;
+      // So that game selection is canceled
+      state.difficulty = 6;
+      // Signal activation
+      diffColor = CRGB::Purple;
+    }
+  #endif
+
+  if (showDifficulty == 1) {
+    matrixSetByIndex(state.difficulty, 0, 5, diffColor);
+  }
 
   // DIFFICULTY 1: Only arcade button game, no PR game
   // DIFFICULTY 2: Arcade button game, poti game, no PR game (see game_choose())
@@ -644,8 +678,8 @@ void game_intro_loop() { /*{{{*/
 
 // STATE: 10
 void game_choose() { /*{{{*/
-  if (state.difficulty == 2 || state.difficulty == 4) {
-    // On difficulty 2 and 4 choose only arcade button (2) + poti game (3)
+  if (state.difficulty == 2 || state.difficulty == 5) {
+    // On difficulty 2 and 5 choose only arcade button (2) + poti game (3)
     activeGame = random(2, 3 + 1); 
   } else if (force_game_nr > 0) {
     // force a single game
@@ -795,13 +829,26 @@ void game_arcade_button_reset() { /*{{{*/
   gameArcadePressedButton = 0;
   gameArcadePressedSoFarIndex = 0;
   gameArcadePrevPressedButton = 255;
+  gameArcadeButtonUseButtonLedsAlso = 0;
 
   // How many presses necessary?
   gameArcadeNumberOfButtonPresses = 3 + int((state.score / gameArcadeLongerChainEveryScore));
 
+  // Use arcade buttons?
+  if (state.score > gameArcadeLongerChainEveryScore * 2) {
+    gameArcadeButtonUseButtonLedsAlso = 1;
+  }
+
   // Choose random buttons for every slot
   for(uint8_t i = 0; i < gameArcadeNumberOfButtonPresses; i++) {
     buttonsToPress[i] = random(0, gameArcadeButtonNumberOfButtons);
+
+    // Use button LED instead of matrix? Add 10 to mark that!
+    // Occurs with a 25% chance:
+    if (gameArcadeButtonUseButtonLedsAlso && random(0, 4) == 1) {
+      buttonsToPress[i] = buttonsToPress[i] + 10;
+    }
+
     #ifdef DEBUG2
       Serial.print("game_arcade_button_reset: Must press button #");
       Serial.print(i);
@@ -816,8 +863,8 @@ void game_arcade_button_reset() { /*{{{*/
   gameArcadeButtonTimer = 1;
   gameArcadeButtonState = 1;
 
-  // Show task
-  changeStateTo(31, 1);
+  // Show intro then task
+  changeStateTo(38, 1);
 } /*}}} */
 
 // STATE: 31
@@ -828,8 +875,14 @@ void game_arcade_button_show_task() { /*{{{*/
 
     // Pause or next button display?
     if (gameArcadeButtonState % 2 == 0) {
+      // Clearing display / Button LEDS
       game_arcade_button_display_button(buttonsToPress[gameArcadeButtonState/2] - 1, CRGB::Black);
       gameArcadeButtonTimer = millis() + gameArcadeButtonShowColorPauseMsec;
+
+      // Turn off button LEDS
+      for (uint8_t i = 0; i < gameArcadeButtonNumberOfButtons; i++) {
+        digitalWrite(gameArcadeButtonPinsLedOut[i], LOW);
+      }
 
       #ifdef DEBUG2
         Serial.println("game_arcade_button_show_task(): Pausing");
@@ -848,8 +901,13 @@ void game_arcade_button_show_task() { /*{{{*/
         Serial.println(gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]]);
       #endif
 
-      // Fill the corresponding block of the button in the matrix
-      game_arcade_button_display_button(buttonsToPress[gameArcadeButtonState/2], gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]]);
+      if (buttonsToPress[gameArcadeButtonState/2] >= 10) {
+        // Light the button LED
+        digitalWrite(gameArcadeButtonPinsLedOut[buttonsToPress[gameArcadeButtonState/2] - 10], HIGH);
+      } else {
+        // Fill the corresponding block of the button in the matrix
+        game_arcade_button_display_button(buttonsToPress[gameArcadeButtonState/2], gameArcadeButtonPinsColors[buttonsToPress[gameArcadeButtonState/2]]);
+      }
     }
 
     gameArcadeButtonState++;
@@ -877,6 +935,13 @@ void game_arcade_button_detect_pressed() { /*{{{*/
 
   for(uint8_t i = 0; i < gameArcadeButtonNumberOfButtons; i++) {
 
+    uint8_t pressMe = buttonsToPress[gameArcadePressedSoFarIndex];
+
+    // Marker for button led? Calculate the real button
+    if (pressMe >= 10) {
+      pressMe = pressMe - 10;
+    }
+
     // Detect first pressed button
     if (digitalRead(gameArcadeButtonPinsDin[i]) == HIGH) {
       gameArcadePrevPressedButton = gameArcadeButtonPinsDin[i];
@@ -894,7 +959,7 @@ void game_arcade_button_detect_pressed() { /*{{{*/
 
       #ifdef DEBUG2
         Serial.print("game_arcade_button_detect_pressed(): Must press D");
-        Serial.print(gameArcadeButtonPinsDin[buttonsToPress[gameArcadePressedSoFarIndex]]);
+        Serial.print(gameArcadeButtonPinsDin[pressMe]);
         Serial.print(" as press #");
         Serial.print(gameArcadePressedSoFarIndex+1);
         Serial.print(" of ");
@@ -907,11 +972,11 @@ void game_arcade_button_detect_pressed() { /*{{{*/
         Serial.println(digitalRead(gameArcadeButtonPinsDin[i]));
       #endif
 
-      if (gameArcadeButtonPinsDin[i] != gameArcadeButtonPinsDin[buttonsToPress[gameArcadePressedSoFarIndex]]) {
+      if (gameArcadeButtonPinsDin[i] != gameArcadeButtonPinsDin[pressMe]) {
         // Did NOT press the correct button
         changeStateNext = 33;
       } else if (gameArcadePressedSoFarIndex == gameArcadeNumberOfButtonPresses - 1) {
-        // All buttons pressed correctly?
+        // All buttons pressed correctly
         changeStateNext = 34;
       }
 
@@ -993,11 +1058,11 @@ void game_poti_reset() { /*{{{*/
       if (force_time_to_solve_msec > 0) {
         gamePotiTimeToSolveMsec = force_time_to_solve_msec;
       } else {
-        // Every 5 points/score loose one second of reaction time
+        // Every 10 points/score loose one second of reaction time
         // with a lower limit of 6000 msec
-        gamePotiTimeToSolveMsec = 15000 - int((state.score * 200));
-        if (gamePotiTimeToSolveMsec < 6000) {
-          gamePotiTimeToSolveMsec = 6000;
+        gamePotiTimeToSolveMsec = 15000 - int((state.score * 100));
+        if (gamePotiTimeToSolveMsec < 8000) {
+          gamePotiTimeToSolveMsec = 8000;
         }
       }
     }
@@ -1009,7 +1074,33 @@ void game_poti_reset() { /*{{{*/
 // STATE: 42
 void game_poti_show_challenge() { /*{{{*/
   if (state.next == 0) {
+
+    uint8_t displayInColumn[GAME_POTI_NUM_POTIS];
+    uint8_t displayInRow[GAME_POTI_NUM_POTIS];
+
+    // Default: display the number in the corner of the poti
     for(uint8_t i = 0; i < GAME_POTI_NUM_POTIS; i++) {
+      displayInColumn[i] = gamePotiHintStartColumn[i];
+      displayInRow[i] = gamePotiHintStartRow[i];
+    }
+
+    // In 25% of cases with score >= 10 randomize position
+    if (state.score >= 10 && random(0,3) == 0) {
+      for (uint8_t i = 0; i < GAME_POTI_NUM_POTIS - 1; i++) {
+        uint8_t targetPos = random(0, GAME_POTI_NUM_POTIS - i);
+
+        uint8_t temp = displayInColumn[i];
+        displayInColumn[i] = displayInColumn[targetPos];
+        displayInColumn[targetPos] = temp;
+
+        temp = displayInRow[i];
+        displayInRow[i] = displayInRow[targetPos];
+        displayInRow[targetPos] = temp;
+      }
+    }
+
+    for(uint8_t i = 0; i < GAME_POTI_NUM_POTIS; i++) {
+
       #ifdef DEBUG2
        Serial.print("Showing poti #");
        Serial.print(i);
@@ -1022,7 +1113,7 @@ void game_poti_show_challenge() { /*{{{*/
        Serial.println(gamePotiHintStartRow[i]);
       #endif
 
-      matrixSetByIndex(gamePotiChallenge[i], gamePotiHintStartColumn[i], gamePotiHintStartRow[i], gamePotiColors[i]);
+      matrixSetByIndex(gamePotiChallenge[i], displayInColumn[i], displayInRow[i], gamePotiColors[i]);
       matrixLedsModified = 2;
     }
 
@@ -1109,7 +1200,7 @@ void game_master_loop() { /*{{{*/
       game_intro_loop();
       break;
     case 10:
-      // Choose a random game
+      // Choose a random game if the PR game is not the only one wanted
       if (pressure_release_game_flag < 255) {
         game_choose();
       }
@@ -1127,9 +1218,15 @@ void game_master_loop() { /*{{{*/
       // Arcade Button fresh game
       game_arcade_button_reset();
       break;
-    case 31 ... 39:
+    case 31 ... 35:
       // Arcade Button game loop
       game_arcade_button_loop();
+      break;
+    case 38:
+      if (state.next == 0) {
+        matrixSetByArray(matrixPicIntro1, 0, 0, CRGB::Yellow);
+        changeStateTo(31, 1500);
+      }
       break;
     case 40:
       // Poti fresh game
@@ -1209,7 +1306,7 @@ void game_master_loop() { /*{{{*/
       displayScore();
       changeStateTo(200, 8000);
       break;
-    case GAME_STATE_START:
+    case GAME_BOX_STATE_START:
       // Box intro 1
       pressureReleaseIsTicking = 0;
       if (state.next == 0) {
@@ -1226,7 +1323,7 @@ void game_master_loop() { /*{{{*/
       if (state.next == 0) {
         matrixSetByArray(matrixPicIntro2, 0, 0, CRGB::Green);
         set_difficulty(1);
-        changeStateTo(GAME_STATE_START, 1500);
+        changeStateTo(GAME_BOX_STATE_START, 1500);
       }
       press_any_button_to_start_game();
       break;
@@ -1249,19 +1346,19 @@ void game_master_loop() { /*{{{*/
     case 200:
       // Turn off every led and reset all games
       clearMatrix();
-      pressureReleaseCurrentLevel = 0;
-      force_game_nr = 0;
-      changeStateTo(GAME_STATE_START, 10);
+      changeStateTo(GAME_BOX_STATE_START, 10);
       break;
   }
 } /*}}} */
 
 // Pressure Release Main loop
 void pressure_release_loop() { /*{{{*/
+  // No PR game?
   if (pressure_release_game_flag == 1) {
     return;
   }
 
+  // If the PR should not tick, draw state and return
   if (pressureReleaseIsTicking == 0) {
     #ifdef DEBUG2
       if (pressureReleaseDebugTicker > 100) {
@@ -1269,8 +1366,7 @@ void pressure_release_loop() { /*{{{*/
         pressureReleaseDebugTicker = 0;
       }
     #endif
-    // TODO: needed?
-    //pressure_release_draw_state();
+    pressure_release_draw_state();
     return;
   }
 
@@ -1279,10 +1375,12 @@ void pressure_release_loop() { /*{{{*/
 
   // Change pressure level if the timer has elapsed
   if (millis() >= pressureReleaseTimerMsec + pressureReleaseNextStepMsec + pressureReleaseFirstStepMsec) {
-    // Just once, so reset:
+    // First tick has a different msec offset and happens only once, so reset:
     pressureReleaseFirstStepMsec = 0;
 
     // Increase level in the direction
+    // -1 : left
+    //  1 : right
     pressureReleaseCurrentLevel += pressureReleaseCurrentDirection;
 
     #ifdef DEBUG2
@@ -1292,17 +1390,20 @@ void pressure_release_loop() { /*{{{*/
       Serial.print(pressureReleaseCurrentDirection);
     #endif
 
-    //  0 --- 4 --- 9 (LEDs)
+    //  0 --- 4 --- 8 (LEDs)
     // -4 --- 0 --- 4 (Level) 
-    if (pressureReleaseCurrentLevel < -(pressureReleaseNumLeds/2) || pressureReleaseCurrentLevel > (pressureReleaseNumLeds/2)) {
+    if (abs(pressureReleaseCurrentLevel) > (pressureReleaseNumLeds/2)) {
       // Lost!
       #ifdef DEBUG2
         Serial.println("");
         Serial.println("pressure_release_loop: Timer over!");
       #endif
+
+      // Lost PR game:
       changeStateTo(170, 1);
+      return;
     } else if(pressureReleaseCurrentLevel == 0) {
-      // When level is 0 choose a new direction
+      // When level is 0 choose a new random direction
       pressureReleaseCurrentDirection = random(0, 2) == 0 ? -1 : 1;
 
       #ifdef DEBUG2
@@ -1310,7 +1411,8 @@ void pressure_release_loop() { /*{{{*/
         Serial.print(pressureReleaseCurrentDirection);
       #endif
     } 
-    
+   
+    // Draw state
     pressure_release_draw_state();
 
     #ifdef DEBUG2
@@ -1335,7 +1437,11 @@ void misc_commands_loop() { /*{{{*/
 
   // All pressed? Reset the box!
   if(numberOfArcadeButtonsPressed == 3) {
-    changeStateTo(GAME_STATE_START, 1);
+    #ifdef DEBUG2
+      Serial.print("misc_commands_loop: Reset!");
+    #endif
+    changeStateTo(200, 200);
+    return;
   }
 
   // Pressing the outer arcade buttons + the right pressure release button adds +5 score
@@ -1344,6 +1450,9 @@ void misc_commands_loop() { /*{{{*/
     if (digitalRead(gameArcadeButtonPinsDin[0]) == HIGH && 
         digitalRead(gameArcadeButtonPinsDin[gameArcadeButtonNumberOfButtons - 1]) == HIGH &&
         digitalRead(pressureReleasePinIn[1]) == HIGH)  {
+      #ifdef DEBUG2
+        Serial.print("misc_commands_loop: +5 score added!");
+      #endif
       state.score = state.score + 5;
     }
   #endif
@@ -1380,7 +1489,7 @@ void loop() /*{{{*/
   // misc commands loop
   misc_commands_loop();
 
-  // Run pressure release loop
+  // pressure release loop
   pressure_release_loop();
  
   // Run master loop
@@ -1394,5 +1503,6 @@ void loop() /*{{{*/
   // If PRESSURE RELEASE leds have been modified, show them
   if (pressureReleaseLedsModified > 0) {
     updatePressureReleaseLeds();
+    pressureReleaseLedsModified = 0;
   }
 } /*}}}*/
