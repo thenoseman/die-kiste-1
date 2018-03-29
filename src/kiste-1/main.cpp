@@ -313,7 +313,7 @@ int8_p matrixPicIntro2[13] PROGMEM = {1,4,48,192,0,35,204,176,223,126,49,132,0};
 int8_p matrixPicArrowDown[13] PROGMEM = {0,32,192,128,3,255,255,239,0,3,8,0,0};
 /*}}}*/
 
-void changeStateTo(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
+void change_state_to(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
   if (state.next != nextState) {
     state.nextStateAtMsec = millis() + nextStateInMsec;
     state.next = nextState;
@@ -327,7 +327,7 @@ void changeStateTo(const unsigned int nextState, const unsigned long nextStateIn
   }
 } /*}}} */
 
-void updateState() { /*{{{*/
+void update_state() { /*{{{*/
   if (state.nextStateAtMsec > 0 && state.nextStateAtMsec <= millis()) {
     state.current = state.next;
     state.nextStateAtMsec = 0;
@@ -340,7 +340,7 @@ void updateState() { /*{{{*/
   }
 } /*}}} */
 
-void matrixSetByArray(int8_p picture[], int startColumn, int startRow, CRGB color, int partialUpdate) /*{{{*/{
+void matrix_set_picture(int8_p picture[], int startColumn, int startRow, CRGB color, int partialUpdate) /*{{{*/{
 
   // Loop through all elements
   for(int pByte = 0; pByte < 13; pByte++) {
@@ -357,19 +357,19 @@ void matrixSetByArray(int8_p picture[], int startColumn, int startRow, CRGB colo
   }
 } /*}}}*/
 
-void matrixSetByArray(int8_p picture[], int startColumn, int startRow, CRGB color) /*{{{*/{
-  matrixSetByArray(picture, startColumn, startRow, color, 0);
+void matrix_set_picture(int8_p picture[], int startColumn, int startRow, CRGB color) /*{{{*/{
+  matrix_set_picture(picture, startColumn, startRow, color, 0);
 } /*}}}*/
 
-void matrixSetByIndex(int alphaIndex, int startColumn, int startRow, CRGB color, int partialUpdate) /*{{{*/{
-  matrixSetByArray(alpha[alphaIndex], startColumn, startRow, color, partialUpdate);
+void matrix_set_number(int alphaIndex, int startColumn, int startRow, CRGB color, int partialUpdate) /*{{{*/{
+  matrix_set_picture(alpha[alphaIndex], startColumn, startRow, color, partialUpdate);
 } /*}}}*/
 
-void matrixSetByIndex(int alphaIndex, int startColumn, int startRow, CRGB color) /*{{{*/{
-  matrixSetByIndex(alphaIndex, startColumn, startRow, color, 0);
+void matrix_set_number(int alphaIndex, int startColumn, int startRow, CRGB color) /*{{{*/{
+  matrix_set_number(alphaIndex, startColumn, startRow, color, 0);
 } /*}}}*/
 
-void showProgressBar(unsigned long progress, uint8_t horizontal) { /*{{{*/
+void show_progress_bar(unsigned long progress, uint8_t horizontal) { /*{{{*/
   if (progress > 0 && previousProgress != progress) {
     previousProgress = progress;
 
@@ -385,23 +385,23 @@ void showProgressBar(unsigned long progress, uint8_t horizontal) { /*{{{*/
   matrixLedsModified = 2;
 } /*}}} */
 
-void updateMatrixLeds() {/*{{{*/
+void update_matrix_leds() {/*{{{*/
   FastLED[0].showLeds(matrixLedBrightness);
 } /*}}} */
 
-void updatePressureReleaseLeds() {/*{{{*/
+void update_pressure_release_leds() {/*{{{*/
   FastLED[1].showLeds(pressureReleaseLedBrightness);
 } /*}}} */
 
-void clearMatrix() { /*{{{*/
+void clear_matrix() { /*{{{*/
   fill_solid(matrixLeds, matrixNumLeds, CRGB::Black);
-  updateMatrixLeds();
+  update_matrix_leds();
 } /*}}} */
 
 void game_arcade_button_display_button(int buttonIndex, CRGB color) { /*{{{*/
   // Choose a random position
   uint8_t r = random(0, 3);
-  matrixSetByArray(matrixPicButton, gameArcadeButtonStartColumnPos[r], gameArcadeButtonStartRowPos[r], color); 
+  matrix_set_picture(matrixPicButton, gameArcadeButtonStartColumnPos[r], gameArcadeButtonStartRowPos[r], color); 
 } /*}}} */
 
 void matrix_setup() /*{{{*/{
@@ -510,9 +510,9 @@ void pressure_release_setup() { /*{{{*/
 } /*}}} */
 
 void displayScore() { /*{{{*/
-  matrixSetByArray(matrixPicBorder, 0, 0, CRGB::Grey);
-  matrixSetByIndex((state.score/10), 1, 2, CRGB::Grey);
-  matrixSetByIndex((state.score%10), 5, 2, CRGB::Grey);
+  matrix_set_picture(matrixPicBorder, 0, 0, CRGB::Grey);
+  matrix_set_number((state.score/10), 1, 2, CRGB::Grey);
+  matrix_set_number((state.score%10), 5, 2, CRGB::Grey);
 } /*}}} */
 
 void game_setup() {/*{{{*/
@@ -533,8 +533,8 @@ void game_over_or_next_game(uint8_t showPicture) { /*{{{*/
 
   // Show Smiley
   if (showPicture) {
-    clearMatrix();
-    matrixSetByArray(matrixPicSmileyNegative, 0,0, CRGB::Crimson);
+    clear_matrix();
+    matrix_set_picture(matrixPicSmileyNegative, 0,0, CRGB::Crimson);
   }
 
   // Turn off pressure release game
@@ -547,10 +547,10 @@ void game_over_or_next_game(uint8_t showPicture) { /*{{{*/
 
   if (state.lifes == 0) {
     // All lifes lost, game over
-    changeStateTo(111, 1500);
+    change_state_to(111, 1500);
   } else {
     // Show life lost and reset
-    changeStateTo(110, 1500);
+    change_state_to(110, 1500);
   }
 } /*}}} */
 
@@ -590,7 +590,7 @@ void press_any_button_to_start_game() { /*{{{*/
 
   // If any button was pressed, start game...
   if (pressed == 1) {
-    changeStateTo(1, 1);
+    change_state_to(1, 1);
   }
 } /*}}} */
 
@@ -625,7 +625,7 @@ void set_difficulty(uint8_t showDifficulty) { /*{{{*/
   #endif
 
   if (showDifficulty == 1) {
-    matrixSetByIndex(state.difficulty, 0, 5, diffColor);
+    matrix_set_number(state.difficulty, 0, 5, diffColor);
   }
 
   // DIFFICULTY 1: Only arcade button game, no PR game
@@ -657,20 +657,20 @@ void game_intro_loop() { /*{{{*/
   switch (state.current) {
     case 2:
       if (state.next == 0) {
-        matrixSetByArray(matrixPicBig3, 0, 0, CRGB::Red);
-        changeStateTo(3, 750);
+        matrix_set_picture(matrixPicBig3, 0, 0, CRGB::Red);
+        change_state_to(3, 750);
       }
       break;
     case 3:
       if (state.next == 0) {
-        matrixSetByArray(matrixPicBig2, 0, 0, CRGB::Crimson);
-        changeStateTo(4, 750);
+        matrix_set_picture(matrixPicBig2, 0, 0, CRGB::Crimson);
+        change_state_to(4, 750);
       }
       break;
     case 4:
       if (state.next == 0) {
-        matrixSetByArray(matrixPicBig1, 0, 0, CRGB::Green);
-        changeStateTo(10, 750);
+        matrix_set_picture(matrixPicBig1, 0, 0, CRGB::Green);
+        change_state_to(10, 750);
       }
       break;
   }
@@ -689,7 +689,7 @@ void game_choose() { /*{{{*/
   }
 
   // Every game has 10 possible states
-  changeStateTo((activeGame * 10) + 10, 1);
+  change_state_to((activeGame * 10) + 10, 1);
 
   #ifdef DEBUG2
     Serial.print("game_choose: activeGame = ");
@@ -724,9 +724,9 @@ void game_switchboard_reset() { /*{{{*/
   gameSwitchboardPinActive2 = 0;
 
   // Display target number
-  matrixSetByIndex((switchboard.number/10), 1, 2, CRGB::Green, 1);
-  matrixSetByIndex((switchboard.number%10), 5, 2, CRGB::Green, 1);
-  matrixSetByArray(matrixPicPlug, 0, 0, CRGB::Yellow, 1);
+  matrix_set_number((switchboard.number/10), 1, 2, CRGB::Green, 1);
+  matrix_set_number((switchboard.number%10), 5, 2, CRGB::Green, 1);
+  matrix_set_picture(matrixPicPlug, 0, 0, CRGB::Yellow, 1);
 
   // Remember start time
   switchboard.startMillis = millis();
@@ -739,7 +739,7 @@ void game_switchboard_reset() { /*{{{*/
   }
 
   // Start game loop
-  changeStateTo(21, 1);
+  change_state_to(21, 1);
 } /*}}} */
 
 // STATE: 21+
@@ -797,7 +797,7 @@ void game_switchboard_loop() { /*{{{*/
        gameSwitchboardPinActive2 == switchboard.activePin1)) {
       // CORRECT!
       correctFound = 1;
-      changeStateTo(101, 1);
+      change_state_to(101, 1);
     }
   }
 
@@ -809,10 +809,10 @@ void game_switchboard_loop() { /*{{{*/
     if(millis() - switchboard.startMillis <= switchboard.timeToSolveMillis) {
       unsigned long progress = switchboard.timeToSolveMillis + switchboard.startMillis - millis();
       unsigned long progressLeds = map(progress, 0, switchboard.timeToSolveMillis, 10, 0);
-      showProgressBar(progressLeds, 0);
+      show_progress_bar(progressLeds, 0);
     } else {
       // Game lost!
-      changeStateTo(100, 1);
+      change_state_to(100, 1);
     }
   }
 } /*}}} */
@@ -864,7 +864,7 @@ void game_arcade_button_reset() { /*{{{*/
   gameArcadeButtonState = 1;
 
   // Show intro then task
-  changeStateTo(38, 1);
+  change_state_to(38, 1);
 } /*}}} */
 
 // STATE: 31
@@ -915,7 +915,7 @@ void game_arcade_button_show_task() { /*{{{*/
     // Showed all buttons?
     if (buttonsToPress[gameArcadeButtonState/2] == 255) {
       gameArcadeButtonTimer = 0;
-      changeStateTo(32, gameArcadeButtonShowColorMsec);
+      change_state_to(32, gameArcadeButtonShowColorMsec);
     }
 
     matrixLedsModified = 1;
@@ -929,7 +929,7 @@ void game_arcade_button_detect_pressed() { /*{{{*/
 
   // On first call remember start msecs and show ? mark
   if (gameArcadeButtonTimer == 0) {
-    matrixSetByArray(matrixPicQuestion, 0, 0, CRGB::Yellow);
+    matrix_set_picture(matrixPicQuestion, 0, 0, CRGB::Yellow);
     gameArcadeButtonTimer = millis();
   }
 
@@ -990,7 +990,7 @@ void game_arcade_button_detect_pressed() { /*{{{*/
 
     // Progress bar
     unsigned long progressLedsCount = map(gameArcadeButtonTimeToSolveTask + gameArcadeButtonTimer - millis(), 0, gameArcadeButtonTimeToSolveTask, 10, 0);
-    showProgressBar(progressLedsCount, 0);
+    show_progress_bar(progressLedsCount, 0);
 
     // Time over
     if (progressLedsCount >= 10) {
@@ -1003,7 +1003,7 @@ void game_arcade_button_detect_pressed() { /*{{{*/
       for(uint8_t i = 0; i < gameArcadeButtonNumberOfButtons; i++) {
         digitalWrite(gameArcadeButtonPinsLedOut[i], LOW);
       }
-      changeStateTo(changeStateNext, 1);
+      change_state_to(changeStateNext, 1);
     }
   }
 } /*}}} */
@@ -1021,11 +1021,11 @@ void game_arcade_button_loop() { /*{{{*/
       break;
     case 33:
       // Wrong button pressed
-      changeStateTo(100, 1);
+      change_state_to(100, 1);
       break;
     case 34:
       // All buttons correctly pressed
-      changeStateTo(101, 1);
+      change_state_to(101, 1);
       break;
   }
 } /*}}} */
@@ -1068,7 +1068,7 @@ void game_poti_reset() { /*{{{*/
     }
   }
 
-  changeStateTo(41, 1);
+  change_state_to(41, 1);
 } /*}}} */
 
 // STATE: 42
@@ -1113,12 +1113,12 @@ void game_poti_show_challenge() { /*{{{*/
        Serial.println(gamePotiHintStartRow[i]);
       #endif
 
-      matrixSetByIndex(gamePotiChallenge[i], displayInColumn[i], displayInRow[i], gamePotiColors[i]);
+      matrix_set_number(gamePotiChallenge[i], displayInColumn[i], displayInRow[i], gamePotiColors[i]);
       matrixLedsModified = 2;
     }
 
     gamePotiChallengeStartMsec = millis();
-    changeStateTo(43, 1);
+    change_state_to(43, 1);
   }
 } /*}}} */
 
@@ -1174,15 +1174,15 @@ void game_poti_check_solution() { /*{{{*/
 
   // All correct?
   if (correctPotis == GAME_POTI_NUM_POTIS) {
-    changeStateTo(101, 1);
+    change_state_to(101, 1);
   } else {
     // Progress bar
     unsigned long progressLedsCount = map(gamePotiTimeToSolveMsec + gamePotiChallengeStartMsec - millis(), 0, gamePotiTimeToSolveMsec, 10, 0);
-    showProgressBar(progressLedsCount, 1);
+    show_progress_bar(progressLedsCount, 1);
 
     if (progressLedsCount >= 10) {
       // Timout! Loose game
-      changeStateTo(100, 1);
+      change_state_to(100, 1);
     }
   }
 } /*}}} */
@@ -1193,7 +1193,7 @@ void game_master_loop() { /*{{{*/
     case 1:
       game_setup();
       pressure_release_setup();
-      changeStateTo(2, 1);
+      change_state_to(2, 1);
       break;
     case 2 ... 9:
       // 3 ... 2 ... 1 ... GO!
@@ -1224,8 +1224,8 @@ void game_master_loop() { /*{{{*/
       break;
     case 38:
       if (state.next == 0) {
-        matrixSetByArray(matrixPicIntro1, 0, 0, CRGB::Yellow);
-        changeStateTo(31, 1500);
+        matrix_set_picture(matrixPicIntro1, 0, 0, CRGB::Yellow);
+        change_state_to(31, 1500);
       }
       break;
     case 40:
@@ -1238,20 +1238,20 @@ void game_master_loop() { /*{{{*/
         // there are 4 pictures so ...
         switch(random(1,5)) {
           case 1:
-            matrixSetByArray(matrixPicPoti1, 0, 0, CRGB::Yellow);
+            matrix_set_picture(matrixPicPoti1, 0, 0, CRGB::Yellow);
             break;
           case 2:
-            matrixSetByArray(matrixPicPoti2, 0, 0, CRGB::Yellow);
+            matrix_set_picture(matrixPicPoti2, 0, 0, CRGB::Yellow);
             break;
           case 3:
-            matrixSetByArray(matrixPicPoti3, 0, 0, CRGB::Yellow);
+            matrix_set_picture(matrixPicPoti3, 0, 0, CRGB::Yellow);
             break;
           case 4:
-            matrixSetByArray(matrixPicPoti4, 0, 0, CRGB::Yellow);
+            matrix_set_picture(matrixPicPoti4, 0, 0, CRGB::Yellow);
             break;
         }
       }
-      changeStateTo(42, 2000);
+      change_state_to(42, 2000);
       break;
     case 42:
       game_poti_show_challenge();
@@ -1268,52 +1268,52 @@ void game_master_loop() { /*{{{*/
       // Game won!
       state.score++;
 
-      clearMatrix();
+      clear_matrix();
 
       // Show smiley (1, 2, 3)
       switch(random(1,4)) {
         case 1:
-          matrixSetByArray(matrixPicSmileyPositive1, 0,0, CRGB::Green);
+          matrix_set_picture(matrixPicSmileyPositive1, 0,0, CRGB::Green);
           break;
         case 2:
-          matrixSetByArray(matrixPicSmileyPositive2, 0,0, CRGB::Green);
+          matrix_set_picture(matrixPicSmileyPositive2, 0,0, CRGB::Green);
           break;
         case 3:
-          matrixSetByArray(matrixPicSmileyPositive3, 0,0, CRGB::Green);
+          matrix_set_picture(matrixPicSmileyPositive3, 0,0, CRGB::Green);
           break;
       }
 
-      changeStateTo(102, 1);
+      change_state_to(102, 1);
       break;
     case 102:
       // Restart game:
-      changeStateTo(2, 2000);
+      change_state_to(2, 2000);
       break;
     case 110:
       // Show lifes and reset
       pressure_release_setup();
-      matrixSetByArray(matrixPicMan, 0, 0, CRGB::Yellow);
-      matrixSetByIndex(state.lifes, 5, 3, CRGB::Green);
-      changeStateTo(2, 2000);
+      matrix_set_picture(matrixPicMan, 0, 0, CRGB::Yellow);
+      matrix_set_number(state.lifes, 5, 3, CRGB::Green);
+      change_state_to(2, 2000);
       break;
     case 111:
       // All lifes lost ... Game over!
-      matrixSetByArray(matrixPicSkull, 0, 0, CRGB::Red);
-      changeStateTo(112, 2000);
+      matrix_set_picture(matrixPicSkull, 0, 0, CRGB::Red);
+      change_state_to(112, 2000);
       break;
     case 112:
       // Display score and end game
       displayScore();
-      changeStateTo(200, 8000);
+      change_state_to(200, 8000);
       break;
     case GAME_BOX_STATE_START:
       // Box intro 1
       pressureReleaseIsTicking = 0;
       if (state.next == 0) {
-        matrixSetByArray(matrixPicIntro1, 0, 0, CRGB::Green);
+        matrix_set_picture(matrixPicIntro1, 0, 0, CRGB::Green);
         set_difficulty(1);
         pressure_release_draw_state();
-        changeStateTo(151, 1500);
+        change_state_to(151, 1500);
       }
       press_any_button_to_start_game();
       break;
@@ -1321,9 +1321,9 @@ void game_master_loop() { /*{{{*/
       // Box intro 2
       pressureReleaseIsTicking = 0;
       if (state.next == 0) {
-        matrixSetByArray(matrixPicIntro2, 0, 0, CRGB::Green);
+        matrix_set_picture(matrixPicIntro2, 0, 0, CRGB::Green);
         set_difficulty(1);
-        changeStateTo(GAME_BOX_STATE_START, 1500);
+        change_state_to(GAME_BOX_STATE_START, 1500);
       }
       press_any_button_to_start_game();
       break;
@@ -1332,9 +1332,9 @@ void game_master_loop() { /*{{{*/
       if (state.next == 0) {
         pressureReleaseCurrentLevel = 0;
         pressureReleaseIsTicking = 0;
-        clearMatrix();
-        matrixSetByArray(matrixPicArrowDown, 0, 0, CRGB::Crimson);
-        changeStateTo(171, 2000);
+        clear_matrix();
+        matrix_set_picture(matrixPicArrowDown, 0, 0, CRGB::Crimson);
+        change_state_to(171, 2000);
       }
       break;
     case 171:
@@ -1345,8 +1345,8 @@ void game_master_loop() { /*{{{*/
       break; 
     case 200:
       // Turn off every led and reset all games
-      clearMatrix();
-      changeStateTo(GAME_BOX_STATE_START, 10);
+      clear_matrix();
+      change_state_to(GAME_BOX_STATE_START, 10);
       break;
   }
 } /*}}} */
@@ -1400,7 +1400,7 @@ void pressure_release_loop() { /*{{{*/
       #endif
 
       // Lost PR game:
-      changeStateTo(170, 1);
+      change_state_to(170, 1);
       return;
     } else if(pressureReleaseCurrentLevel == 0) {
       // When level is 0 choose a new random direction
@@ -1440,7 +1440,7 @@ void misc_commands_loop() { /*{{{*/
     #ifdef DEBUG2
       Serial.print("misc_commands_loop: Reset!");
     #endif
-    changeStateTo(200, 200);
+    change_state_to(200, 200);
     return;
   }
 
@@ -1478,7 +1478,7 @@ void setup() /*{{{*/
 void loop() /*{{{*/
 {
   // advance state
-  updateState();
+  update_state();
 
   // Reset all LEDs
   if (matrixLedsModified == 1) {
@@ -1497,12 +1497,12 @@ void loop() /*{{{*/
 
   // If MATRIX leds have been modified, show them
   if (matrixLedsModified > 0) {
-    updateMatrixLeds();
+    update_matrix_leds();
   }
 
   // If PRESSURE RELEASE leds have been modified, show them
   if (pressureReleaseLedsModified > 0) {
-    updatePressureReleaseLeds();
+    update_pressure_release_leds();
     pressureReleaseLedsModified = 0;
   }
 } /*}}}*/
