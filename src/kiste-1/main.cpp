@@ -78,7 +78,6 @@
 // TODOS:
 // - Switchboard game: solution check after 1000 msec so that the cable must keep connecting for some time
 // - Highscore keeping
-// - Poti game: Randomize colors for score > ? and let the player choose the poti BY COLOR instead of by position
 
 /* DEBUG SETTINGS {{{ */
 // Cancel all things related to the pressure release game
@@ -107,18 +106,18 @@ unsigned long force_time_to_solve_msec = 0;
 #define NUMBER_OF_GAMES 3
 
 typedef struct State {
-  unsigned int current;
-  unsigned int next;
+  uint8_t current;
+  uint8_t next;
   unsigned long nextStateAtMsec;
-  unsigned int score;
-  unsigned int lifes;
-  unsigned int difficulty;
+  uint8_t score;
+  uint8_t lifes;
+  uint8_t difficulty;
 } State;
 
 State state = { .current = GAME_BOX_STATE_START, .next = GAME_BOX_STATE_START, .nextStateAtMsec = 1, .score = START_WITH_SCORE, .lifes = START_WITH_LIVES, .difficulty = 0};
 
 // Currently active game
-int activeGame = 0;
+uint8_t activeGame = 0;
 
 // Total number of playable games
 long numberOfGames = 3;
@@ -173,10 +172,10 @@ uint8_t pressureReleaseCurrentButton = 255;
 /*}}}*/
 
 /* MATRIX SETTINGS {{{*/
-const int matrixDinPin = A0;
+const uint8_t matrixDinPin = A0;
 
 // 100 Leds for display (10x10)
-const int matrixNumLeds = 100;
+const uint8_t matrixNumLeds = 100;
 const uint8_t matrixLedBrightness = 20;
 
 // 0 = no LED update
@@ -190,22 +189,22 @@ CRGB matrixLeds[matrixNumLeds];
 
 /* SWITCHBOARD SETTINGS {{{*/
 // Number of PINS used for switchboard game
-const int gameSwitchboardPinNum = 6;
+const uint8_t gameSwitchboardPinNum = 6;
 
 // PINs for switchbaord game
-const int gameSwitchboardPins[] = { 2, 3, 4, 5, 6, 7 };
+const uint8_t gameSwitchboardPins[] = { 2, 3, 4, 5, 6, 7 };
 
 // Mapping of PIN to value
-const int gameSwitchboardPinValues[] = { 2, 4, 8, 16, 32, 64 };
+const uint8_t gameSwitchboardPinValues[] = { 2, 4, 8, 16, 32, 64 };
 
-int gameSwitchboardPinActive1 = 0;
-int gameSwitchboardPinActive2 = 0;
+uint8_t gameSwitchboardPinActive1 = 0;
+uint8_t gameSwitchboardPinActive2 = 0;
 
 // Running game state for switchboard
 typedef struct SwitchBoard {
-  int activePin1;
-  int activePin2;
-  int number;
+  uint8_t activePin1;
+  uint8_t activePin2;
+  uint8_t number;
   unsigned long startMillis;
   unsigned long timeToSolveMillis;
 } Switchboard;
@@ -313,7 +312,7 @@ int8_p matrixPicIntro2[13] PROGMEM = {1,4,48,192,0,35,204,176,223,126,49,132,0};
 int8_p matrixPicArrowDown[13] PROGMEM = {0,32,192,128,3,255,255,239,0,3,8,0,0};
 /*}}}*/
 
-void change_state_to(const unsigned int nextState, const unsigned long nextStateInMsec) { /*{{{*/
+void change_state_to(const uint8_t nextState, const unsigned long nextStateInMsec) { /*{{{*/
   if (state.next != nextState) {
     state.nextStateAtMsec = millis() + nextStateInMsec;
     state.next = nextState;
@@ -340,15 +339,15 @@ void update_state() { /*{{{*/
   }
 } /*}}} */
 
-void matrix_set_picture(int8_p picture[], int startColumn, int startRow, CRGB color, int partialUpdate) /*{{{*/{
+void matrix_set_picture(int8_p picture[], uint8_t startColumn, uint8_t startRow, CRGB color, uint8_t partialUpdate) /*{{{*/{
 
   // Loop through all elements
-  for(int pByte = 0; pByte < 13; pByte++) {
-    for(int bit = 0; bit < 8; bit++) {
+  for(uint8_t pByte = 0; pByte < 13; pByte++) {
+    for(uint8_t bit = 0; bit < 8; bit++) {
       if (bitRead(picture[pByte], bit)) {
-        int col = ((pByte * 8 + bit) + (10 * startColumn)) / 10; 
-        int pos = (pByte * 8 + bit) + (10 * startColumn) + startRow;
-        if (col > -1 && col < 10) {
+        uint8_t col = ((pByte * 8 + bit) + (10 * startColumn)) / 10; 
+        uint8_t pos = (pByte * 8 + bit) + (10 * startColumn) + startRow;
+        if (col >= 0 && col < 10) {
           matrixLedsModified = partialUpdate == 1 ? 2 : 1;
           matrixLeds[pos] = color;
         }
@@ -357,15 +356,15 @@ void matrix_set_picture(int8_p picture[], int startColumn, int startRow, CRGB co
   }
 } /*}}}*/
 
-void matrix_set_picture(int8_p picture[], int startColumn, int startRow, CRGB color) /*{{{*/{
+void matrix_set_picture(int8_p picture[], uint8_t startColumn, uint8_t startRow, CRGB color) /*{{{*/{
   matrix_set_picture(picture, startColumn, startRow, color, 0);
 } /*}}}*/
 
-void matrix_set_number(int alphaIndex, int startColumn, int startRow, CRGB color, int partialUpdate) /*{{{*/{
+void matrix_set_number(uint8_t alphaIndex, uint8_t startColumn, uint8_t startRow, CRGB color, uint8_t partialUpdate) /*{{{*/{
   matrix_set_picture(alpha[alphaIndex], startColumn, startRow, color, partialUpdate);
 } /*}}}*/
 
-void matrix_set_number(int alphaIndex, int startColumn, int startRow, CRGB color) /*{{{*/{
+void matrix_set_number(uint8_t alphaIndex, uint8_t startColumn, uint8_t startRow, CRGB color) /*{{{*/{
   matrix_set_number(alphaIndex, startColumn, startRow, color, 0);
 } /*}}}*/
 
@@ -398,7 +397,7 @@ void clear_matrix() { /*{{{*/
   update_matrix_leds();
 } /*}}} */
 
-void game_arcade_button_display_button(int buttonIndex, CRGB color) { /*{{{*/
+void game_arcade_button_display_button(uint8_t buttonIndex, CRGB color) { /*{{{*/
   // Choose a random position
   uint8_t r = random(0, 3);
   matrix_set_picture(matrixPicButton, gameArcadeButtonStartColumnPos[r], gameArcadeButtonStartRowPos[r], color); 
@@ -509,7 +508,7 @@ void pressure_release_setup() { /*{{{*/
   pressure_release_draw_state();
 } /*}}} */
 
-void displayScore() { /*{{{*/
+void display_score() { /*{{{*/
   matrix_set_picture(matrixPicBorder, 0, 0, CRGB::Grey);
   matrix_set_number((state.score/10), 1, 2, CRGB::Grey);
   matrix_set_number((state.score%10), 5, 2, CRGB::Grey);
@@ -604,26 +603,6 @@ void set_difficulty(uint8_t showDifficulty) { /*{{{*/
   pressure_release_game_flag = 0;
   force_game_nr = 0;
 
-  // All potis on 6? 
-  // Only PR game in DEBUG or DEBUG2
-  #if defined (DEBUG) || defined (DEBUG2)
-    uint8_t potisOnMaxCount = 0;
-    for(uint8_t potiIndex = 0; potiIndex < GAME_POTI_NUM_POTIS; potiIndex++) {
-      if(map(analogRead(gamePotiPins[potiIndex]), 0, 1023, 1, GAME_POTI_MAP_TO_MAX + 1) == 6) {
-        potisOnMaxCount++;
-      }
-    }
-
-    if (potisOnMaxCount == GAME_POTI_NUM_POTIS) {
-      // Turn off all games but PR
-      pressure_release_game_flag = 255;
-      // So that game selection is canceled
-      state.difficulty = 6;
-      // Signal activation
-      diffColor = CRGB::Purple;
-    }
-  #endif
-
   if (showDifficulty == 1) {
     matrix_set_number(state.difficulty, 0, 5, diffColor);
   }
@@ -717,7 +696,7 @@ void game_switchboard_reset() { /*{{{*/
   #endif
 
   // Reset all Pins as INPUTs
-  for (int i=0; i < gameSwitchboardPinNum; i++) {
+  for (uint8_t i=0; i < gameSwitchboardPinNum; i++) {
     pinMode(gameSwitchboardPins[i], INPUT_PULLUP);
   }
   gameSwitchboardPinActive1 = 0;
@@ -745,17 +724,17 @@ void game_switchboard_reset() { /*{{{*/
 // STATE: 21+
 void game_switchboard_loop() { /*{{{*/
   // Reset
-  int correctFound = 0;
-  int inputPinReadout = LOW;
+  uint8_t correctFound = 0;
+  uint8_t inputPinReadout = LOW;
 
   // Loop all pins switching one as OUTPUT
-  for(int outputPinIndex=0; outputPinIndex < gameSwitchboardPinNum && gameSwitchboardPinActive1 == 0; outputPinIndex++) {
+  for(uint8_t outputPinIndex=0; outputPinIndex < gameSwitchboardPinNum && gameSwitchboardPinActive1 == 0; outputPinIndex++) {
 
     // set the output pin LOW
     pinMode(gameSwitchboardPins[outputPinIndex], OUTPUT);
     digitalWrite(gameSwitchboardPins[outputPinIndex], LOW);
 
-    for(int inputPinIndex = outputPinIndex+1; inputPinIndex < gameSwitchboardPinNum && gameSwitchboardPinActive1 == 0; inputPinIndex++) {
+    for(uint8_t inputPinIndex = outputPinIndex+1; inputPinIndex < gameSwitchboardPinNum && gameSwitchboardPinActive1 == 0; inputPinIndex++) {
       // Don't switch to INPUT for the pin that is currently OUTPUT
       if(inputPinIndex == outputPinIndex) {
         continue;
@@ -1085,7 +1064,7 @@ void game_poti_show_challenge() { /*{{{*/
     }
 
     // In 25% of cases with score >= 10 randomize position
-    if (state.score >= 10 && random(0,3) == 0) {
+    if (state.score >= 10 && random(0,5) == 0) {
       for (uint8_t i = 0; i < GAME_POTI_NUM_POTIS - 1; i++) {
         uint8_t targetPos = random(0, GAME_POTI_NUM_POTIS - i);
 
@@ -1303,7 +1282,7 @@ void game_master_loop() { /*{{{*/
       break;
     case 112:
       // Display score and end game
-      displayScore();
+      display_score();
       change_state_to(200, 8000);
       break;
     case GAME_BOX_STATE_START:
