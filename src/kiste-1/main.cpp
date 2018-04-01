@@ -54,14 +54,15 @@
 //
 // 1. Switchboard
 // --------------
-// The game will display a number which is the addition of the two ports to connect
-// eg. When 36 is shown connect D4 (Value 4) and D6 (Value 32)
+// The game will display a number which is the addition of the two ports to connect.
+// eg. When 36 is shown connect D4 (Value 4) and D6 (Value 32) must be connected.
+// Every 20 score the player gets one second less time for the connection.
 //
 // 2. Arcade Buttons
 // -----------------
 // A sequence of buttons will be displayed. 
 // Press them in this order. Thinks the classical Senso/Simon game.
-// Every 5 points (gameArcadeLongerChainEveryScore) one color to remember is added.
+// Every 7 points (gameArcadeLongerChainEveryScore) one color to remember is added.
 // Once the player gets more than 10 (2 * gameArcadeLongerChainEveryScore) points in the game the button LEDS 
 // themself will also be used.
 //
@@ -73,10 +74,10 @@
 //
 // Difficulty settings:
 // --------------------
-// see set_difficulty()
+// The top left poti can be used to set the difficulty (see set_difficulty())
+// Pressing the right pressure release button allows the player to choose only ONE game which will repeat over and over.
 //
 // TODOS:
-// - Switchboard game: solution check after 1000 msec so that the cable must keep connecting for some time
 // - Highscore keeping
 
 /* DEBUG SETTINGS {{{ */
@@ -102,7 +103,6 @@ unsigned long force_time_to_solve_msec = 0;
 // Startvalues
 #define START_WITH_SCORE 0
 #define START_WITH_LIVES 3
-
 #define NUMBER_OF_GAMES 3
 
 typedef struct State {
@@ -119,8 +119,8 @@ State state = { .current = GAME_BOX_STATE_START, .next = GAME_BOX_STATE_START, .
 // Currently active game
 uint8_t activeGame = 0;
 
-// Total number of playable games
-long numberOfGames = 3;
+// If the user only wants one game...
+uint8_t playOnlyGameNr = 0;
 
 unsigned long previousProgress = 0;
 
@@ -197,8 +197,13 @@ const uint8_t gameSwitchboardPins[] = { 2, 3, 4, 5, 6, 7 };
 // Mapping of PIN to value
 const uint8_t gameSwitchboardPinValues[] = { 2, 4, 8, 16, 32, 64 };
 
+// How long has the player to keep the connection?
+const uint32_t gameSwitchboardTimeToKeepConnectionMsec = 1500;
+
+// Flags / Timer
 uint8_t gameSwitchboardPinActive1 = 0;
 uint8_t gameSwitchboardPinActive2 = 0;
+uint32_t gameSwitchboardTimeCorrectConnection;
 
 // Running game state for switchboard
 typedef struct SwitchBoard {
@@ -236,7 +241,7 @@ unsigned long gameArcadeButtonShowColorPauseMsec = 200;
 unsigned long gameArcadeButtonTimeToSolveTask = 5000;
 
 uint8_t gameArcadeButtonState = 0;
-uint8_t gameArcadeLongerChainEveryScore = 5;
+uint8_t gameArcadeLongerChainEveryScore = 7;
 
 // Number of presses needed to solve this stage
 uint8_t gameArcadeNumberOfButtonPresses = 3;
@@ -554,11 +559,8 @@ void game_over_or_next_game(uint8_t showPicture) { /*{{{*/
 } /*}}} */
 
 void press_any_button_to_start_game() { /*{{{*/
-  uint8_t pressed = 0;
-  uint8_t i;
-
   // Read arcade buttons
-  for(i=0; i < gameArcadeButtonNumberOfButtons; i++) {
+  for(uint8_t i=0; i < gameArcadeButtonNumberOfButtons; i++) {
     pinMode(gameArcadeButtonPinsDin[i], INPUT_PULLUP);
 
     if (digitalRead(gameArcadeButtonPinsDin[i]) == HIGH) {
@@ -567,29 +569,9 @@ void press_any_button_to_start_game() { /*{{{*/
         Serial.print(i);
         Serial.println(" pressed!");
       #endif
-      pressed = 1;
+      change_state_to(1, 1);
       break;
     }
-  }
-
-  // read pressure buttons
-  for(i=0; i < 2; i++) {
-    pinMode(pressureReleasePinIn[i], INPUT_PULLUP);
-
-    if (digitalRead(pressureReleasePinIn[i]) == LOW) {
-      #ifdef DEBUG2
-        Serial.print("[press any key] pressure button ");
-        Serial.print(i);
-        Serial.println(" pressed!");
-      #endif
-      pressed = 1;
-      break;
-    }
-  }
-
-  // If any button was pressed, start game...
-  if (pressed == 1) {
-    change_state_to(1, 1);
   }
 } /*}}} */
 
@@ -603,6 +585,7 @@ void set_difficulty(uint8_t showDifficulty) { /*{{{*/
   pressure_release_game_flag = 0;
   force_game_nr = 0;
 
+  // Show difficulty on matrix display?
   if (showDifficulty == 1) {
     matrix_set_number(state.difficulty, 0, 5, diffColor);
   }
@@ -629,8 +612,42 @@ void set_difficulty(uint8_t showDifficulty) { /*{{{*/
       break;
   }
 
+  // The right PR button can be used to set a SINGLE game
+  if (digitalRead(pressureReleasePinIn[1]) == LOW) {
+    if (playOnlyGameNr >= NUMBER_OF_GAMES) {
+      playOnlyGameNr = 0;
+    } else {
+      pressure_release_game_flag = 0;
+      playOnlyGameNr++;
+    }
+  }
 } /*}}} */
 
+void display_intro_picture() { /*{{{*/
+  switch(playOnlyGameNr) {
+    case 1:
+      // Only switchboard game
+      clear_matrix();
+      matrix_set_picture(matrixPicPlug, 0, 0, CRGB::Yellow);
+      break;
+    case 2:
+      // Only arcade game (same as poti setting 1) 
+      clear_matrix();
+      matrix_set_picture(matrixPicIntro1, 0, 0, CRGB::Yellow);
+      break;
+    case 3:
+      // Only poti game
+      clear_matrix();
+      matrix_set_picture(matrixPicPoti1, 0, 0, CRGB::Yellow);
+      break;
+    case 0:
+      if (state.current == GAME_BOX_STATE_START) {
+        matrix_set_picture(matrixPicIntro1, 0, 0, CRGB::Green);
+      } else {
+        matrix_set_picture(matrixPicIntro2, 0, 0, CRGB::Green);
+      }
+  }
+} /*}}} */
 // STATE: 2 ... 9
 void game_intro_loop() { /*{{{*/
   switch (state.current) {
@@ -657,6 +674,7 @@ void game_intro_loop() { /*{{{*/
 
 // STATE: 10
 void game_choose() { /*{{{*/
+
   if (state.difficulty == 2 || state.difficulty == 5) {
     // On difficulty 2 and 5 choose only arcade button (2) + poti game (3)
     activeGame = random(2, 3 + 1); 
@@ -664,8 +682,24 @@ void game_choose() { /*{{{*/
     // force a single game
     activeGame = force_game_nr;
   } else {
-    activeGame = random(1, numberOfGames + 1); 
+    activeGame = random(1, NUMBER_OF_GAMES + 1); 
   }
+
+  // User want only one game
+  if (playOnlyGameNr > 0) {
+    activeGame = playOnlyGameNr;
+  }
+
+  #ifdef DEBUG2
+    Serial.print("state.difficulty = ");
+    Serial.print(state.difficulty);
+    Serial.print(", force_game_nr = ");
+    Serial.print(force_game_nr);
+    Serial.print(", playOnlyGameNr = ");
+    Serial.print(playOnlyGameNr);
+    Serial.print(", activeGame = ");
+    Serial.println(activeGame);
+  #endif
 
   // Every game has 10 possible states
   change_state_to((activeGame * 10) + 10, 1);
@@ -701,6 +735,7 @@ void game_switchboard_reset() { /*{{{*/
   }
   gameSwitchboardPinActive1 = 0;
   gameSwitchboardPinActive2 = 0;
+  gameSwitchboardTimeCorrectConnection = 0;
 
   // Display target number
   matrix_set_number((switchboard.number/10), 1, 2, CRGB::Green, 1);
@@ -710,11 +745,16 @@ void game_switchboard_reset() { /*{{{*/
   // Remember start time
   switchboard.startMillis = millis();
 
-  // Set time the player has to solve the cahllenge in msec
+  // Set time the player has to solve the challenge in msec
+  // Every 20 score  = -1 sec
   if (force_time_to_solve_msec > 0 && force_game_nr > 0) {
     switchboard.timeToSolveMillis = force_time_to_solve_msec;
   } else {
-    switchboard.timeToSolveMillis = 10000;
+    switchboard.timeToSolveMillis = 10000 - (state.score * 50);
+    // Min time = 7 sec
+    if (switchboard.timeToSolveMillis < 7000) {
+      switchboard.timeToSolveMillis = 7000;
+    }
   }
 
   // Start game loop
@@ -724,7 +764,6 @@ void game_switchboard_reset() { /*{{{*/
 // STATE: 21+
 void game_switchboard_loop() { /*{{{*/
   // Reset
-  uint8_t correctFound = 0;
   uint8_t inputPinReadout = LOW;
 
   // Loop all pins switching one as OUTPUT
@@ -774,14 +813,26 @@ void game_switchboard_loop() { /*{{{*/
        gameSwitchboardPinActive2 == switchboard.activePin2) ||
        (gameSwitchboardPinActive1 == switchboard.activePin2 &&
        gameSwitchboardPinActive2 == switchboard.activePin1)) {
-      // CORRECT!
-      correctFound = 1;
-      change_state_to(101, 1);
+
+      // First time the correct connection is done?
+      if(gameSwitchboardTimeCorrectConnection == 0) {
+        gameSwitchboardTimeCorrectConnection = millis();
+      } else if(gameSwitchboardTimeCorrectConnection + gameSwitchboardTimeToKeepConnectionMsec <= millis()) {
+        // Player has kept the connection long enough
+        change_state_to(101, 1);
+        return;
+      }
+    } else {
+      // Connection wrong
+      gameSwitchboardTimeCorrectConnection = 0;
     }
+  } else {
+    // No connection
+    gameSwitchboardTimeCorrectConnection = 0;
   }
 
   // Test if time is up only if not correct connection found
-  if (correctFound == 0) {
+  if (gameSwitchboardTimeCorrectConnection == 0) {
     gameSwitchboardPinActive1 = 0;
     gameSwitchboardPinActive2 = 0;
 
@@ -1180,7 +1231,7 @@ void game_master_loop() { /*{{{*/
       break;
     case 10:
       // Choose a random game if the PR game is not the only one wanted
-      if (pressure_release_game_flag < 255) {
+      if (pressure_release_game_flag < 255 || playOnlyGameNr > 0) {
         game_choose();
       }
       pressureReleaseIsTicking = 1;
@@ -1289,10 +1340,10 @@ void game_master_loop() { /*{{{*/
       // Box intro 1
       pressureReleaseIsTicking = 0;
       if (state.next == 0) {
-        matrix_set_picture(matrixPicIntro1, 0, 0, CRGB::Green);
         set_difficulty(1);
+        display_intro_picture();
         pressure_release_draw_state();
-        change_state_to(151, 1500);
+        change_state_to(151, 1000);
       }
       press_any_button_to_start_game();
       break;
@@ -1300,9 +1351,9 @@ void game_master_loop() { /*{{{*/
       // Box intro 2
       pressureReleaseIsTicking = 0;
       if (state.next == 0) {
-        matrix_set_picture(matrixPicIntro2, 0, 0, CRGB::Green);
         set_difficulty(1);
-        change_state_to(GAME_BOX_STATE_START, 1500);
+        display_intro_picture();
+        change_state_to(GAME_BOX_STATE_START, 1000);
       }
       press_any_button_to_start_game();
       break;
